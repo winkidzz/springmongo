@@ -37,4 +37,32 @@ build/
 
 ### Local Configuration ###
 application-local.properties
-application-dev.properties 
+application-dev.properties
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+
+# Maven
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# IDE
+*.swp
+*.swo
+
+# Logs
+logs/
+
+# OS specific
+.DS_Store
+Thumbs.db 
