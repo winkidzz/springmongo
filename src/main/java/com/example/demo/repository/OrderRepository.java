@@ -9,7 +9,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.mongodb.repository.Query;
+import org.springframework.stereotype.Repository;
 
+@Repository
 public interface OrderRepository extends MongoRepository<Order, String>, OrderRepositoryCustom {
 
         Logger logger = LoggerFactory.getLogger(OrderRepository.class);
@@ -65,4 +68,9 @@ public interface OrderRepository extends MongoRepository<Order, String>, OrderRe
                                         "} }"
         })
         List<OrderSummaryDTO> findOrderSummaries(LocalDateTime startDate, LocalDateTime endDate);
+
+        @Query("{ 'orderDate': { $gte: ?0, $lte: ?1 }, 'price': { $gt: 10 }, 'status': { $in: ['PENDING', 'PROCESSING', 'CANCELLED'] } }")
+        List<Order> findOrderSummariesQuery(LocalDateTime startDate, LocalDateTime endDate);
+
+        long countByProductConfigId(String productConfigId);
 }

@@ -11,12 +11,13 @@ public class Order {
     @Id
     private String id;
     private String productId;
-    private String orderNumber;
+    private String productConfigId;
+    private int quantity;
+    private double price;
+    private String status;
     private LocalDateTime orderDate;
+    private String orderNumber;
     private LocalDateTime deliveryDate;
     private String productName;
     private String productCategory;
-    private Double price;
-    private Integer quantity;
-    private String status;
 }

@@ -11,6 +11,8 @@ import java.util.List;
 public interface ProductConfigRepository extends MongoRepository<ProductConfig, String> {
     @Query("{ 'enabled': true, 'startDate': { $lte: ?0 }, 'endDate': { $gte: ?0 } }")
     List<ProductConfig> findActiveConfigs(LocalDateTime currentDate);
-    
+
     List<ProductConfig> findByProductId(String productId);
+
+    long countByEnabled(boolean enabled);
 }
