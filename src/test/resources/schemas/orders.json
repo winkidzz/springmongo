@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Order Schema",
+  "type": "object",
+  "required": ["productId", "orderNumber", "orderDate", "productName", "productCategory", "price", "quantity", "status"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the order"
+    },
+    "productId": {
+      "type": "string",
+      "description": "ID of the product associated with the order"
+    },
+    "orderNumber": {
+      "type": "string",
+      "description": "Unique order number"
+    },
+    "orderDate": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date and time when the order was placed"
+    },
+    "deliveryDate": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Expected delivery date and time"
+    },
+    "productName": {
+      "type": "string",
+      "description": "Name of the product"
+    },
+    "productCategory": {
+      "type": "string",
+      "description": "Category of the product"
+    },
+    "price": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Price of the product"
+    },
+    "quantity": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Quantity ordered"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PENDING", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"],
+      "description": "Current status of the order"
+    }
+  }
+} 

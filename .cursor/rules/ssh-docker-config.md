@@ -8,8 +8,8 @@
 3. SSH Config Content:
 ```config
 Host ubuntu-vm
-    HostName localhost
-    Port 2222
+    HostName 192.168.1.198
+    Port 22
     IdentityFile ~/.ssh/ubuntu_vm_key
     StrictHostKeyChecking no
 ```
@@ -37,24 +37,29 @@ Host ubuntu-vm
 ### Application Configuration
 1. MongoDB Connection Settings:
 ```properties
-spring.data.mongodb.host=localhost
+spring.data.mongodb.host=192.168.1.198
 spring.data.mongodb.port=27017
 spring.data.mongodb.database=demo-product-service
 ```
 
 ## Connection Steps
 1. Start Ubuntu VM in VirtualBox
-2. SSH into VM:
+2. Find the VM's IP address (bridged network):
    ```bash
-   ssh ubuntu-vm
-   # or
-   ssh -i ~/.ssh/ubuntu_vm_key godzilla@localhost -p 2222
+   # On the Ubuntu VM
+   ip addr show
+   # Look for inet 192.168.1.xxx
    ```
-3. Start Docker containers:
+3. SSH into VM:
+   ```bash
+   # Using the bridged IP
+   ssh -i ~/.ssh/ubuntu_vm_key godzilla@192.168.1.198
+   ```
+4. Start Docker containers:
    ```bash
    docker-compose up -d
    ```
-4. Verify containers:
+5. Verify containers:
    ```bash
    docker ps
    ```

@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Product Config Schema",
+  "type": "object",
+  "required": ["productId", "configName", "configValue", "startDate", "enabled"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the configuration"
+    },
+    "productId": {
+      "type": "string",
+      "description": "ID of the product this configuration belongs to"
+    },
+    "configName": {
+      "type": "string",
+      "description": "Name of the configuration"
+    },
+    "configValue": {
+      "type": "string",
+      "description": "Value of the configuration"
+    },
+    "startDate": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date and time when the configuration becomes active"
+    },
+    "endDate": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date and time when the configuration expires"
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Whether the configuration is currently active"
+    }
+  }
+} 
