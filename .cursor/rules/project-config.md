@@ -80,7 +80,7 @@ nc -zv 172.18.0.3 27017
 
 ## Application Configuration
 - Server Port: 8081
-- MongoDB Connection: mongodb://localhost:27017/auth_connect_radiology
+- MongoDB Connection: mongodb://localhost:27017/demo-product-service
 - Log Level: INFO
 - Actuator Endpoints: health, info
 

@@ -8,8 +8,8 @@
     <relativePath/>
     <!-- lookup parent from repository -->
   </parent>
-  <groupId>org.ascension.st</groupId>
-  <artifactId>auth-connect-radiology</artifactId>
+  <groupId>com.examplecorp</groupId>
+  <artifactId>demo-product-service</artifactId>
   <version>3.1.1</version>
   <properties>
     <java.version>21</java.version>
@@ -25,11 +25,11 @@
     <!-- Sonar Properties -->
     <jacoco-maven-plugin.version>0.8.8</jacoco-maven-plugin.version>
     <sonar-maven-plugin.version>3.7.0.1746</sonar-maven-plugin.version>
-    <sonar.projectKey>auth-connect-radiology</sonar.projectKey>
-    <sonar.projectName>auth-connect-radiology</sonar.projectName>
+    <sonar.projectKey>demo-product-service</sonar.projectKey>
+    <sonar.projectName>demo-product-service</sonar.projectName>
     <sonar.coverage.exclusions>
             **/config/*, **/model/**, **/nextgate/*, **/exception/*, **/service/*,
-            **/AuthConnectRadiologyApplication.java, **/WreMockServiceImpl.java,
+            **/DemoApplication.java, **/WreMockServiceImpl.java,
             **/TaoRuleCSVToTaoJsonConverter.java, **/ExternalServiceImpl.java
         </sonar.coverage.exclusions>
     <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>

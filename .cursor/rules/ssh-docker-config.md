@@ -27,8 +27,8 @@ Host ubuntu-vm
 ### Container Setup
 1. MongoDB Container:
    - Port: 27017
-   - Database: auth-connect-radiology
-   - Connection String: `mongodb://localhost:27017/auth-connect-radiology`
+   - Database: demo-product-service
+   - Connection String: `mongodb://localhost:27017/demo-product-service`
 
 2. Elasticsearch Container:
    - Port: 9200
@@ -39,7 +39,7 @@ Host ubuntu-vm
 ```properties
 spring.data.mongodb.host=localhost
 spring.data.mongodb.port=27017
-spring.data.mongodb.database=auth-connect-radiology
+spring.data.mongodb.database=demo-product-service
 ```
 
 ## Connection Steps
