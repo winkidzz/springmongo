@@ -10,9 +10,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.config.AbstractMongoClientConfiguration;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
+import com.example.demo.repository.OrderRepositoryImpl;
 
 @Configuration
-@EnableMongoRepositories(basePackages = "com.example.demo.repository")
+@EnableMongoRepositories(
+    basePackages = "com.example.demo.repository",
+    excludeFilters = @ComponentScan.Filter(
+        type = FilterType.ASSIGNABLE_TYPE,
+        classes = {OrderRepositoryImpl.class}
+    )
+)
 public class MongoConfig extends AbstractMongoClientConfiguration {
 
     @Value("${spring.data.mongodb.uri}")

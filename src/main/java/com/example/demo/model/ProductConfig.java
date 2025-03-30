@@ -15,5 +15,9 @@ public class ProductConfig {
     private String configValue;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
+    private LocalDateTime releaseStartDate;
+    private LocalDateTime releaseEndDate;
+    private LocalDateTime createdStartDate;
+    private LocalDateTime createdEndDate;
     private boolean enabled;
 }

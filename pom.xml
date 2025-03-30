@@ -45,6 +45,7 @@
     <spring-cloud-starter-config.version>4.1.0</spring-cloud-starter-config.version>
     <spring-cloud-services-starter-config-client.version>4.1.0</spring-cloud-services-starter-config-client.version>
     <spring-cloud-starter-bootstrap.version>4.1.0</spring-cloud-starter-bootstrap.version>
+    <spring-boot-devtools.version>3.2.3</spring-boot-devtools.version>
   </properties>
   <repositories>
     <!--other repositories if any-->
@@ -107,6 +108,7 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-devtools</artifactId>
+      <scope>runtime</scope>
       <optional>true</optional>
     </dependency>
     <dependency>
@@ -174,19 +176,21 @@
               <artifactId>lombok</artifactId>
             </exclude>
           </excludes>
-          <jvmArguments>
-            --add-opens java.base/java.io=ALL-UNNAMED
-            --enable-preview
-          </jvmArguments>
+          <fork>true</fork>
+          <addResources>true</addResources>
+          <mainClass>com.example.demo.DemoApplication</mainClass>
         </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.11.0</version>
+        <version>3.12.1</version>
         <configuration>
           <source>${java.version}</source>
           <target>${java.version}</target>
+          <compilerArgs>
+            <arg>--enable-preview</arg>
+          </compilerArgs>
         </configuration>
       </plugin>
       <plugin>
