@@ -16,7 +16,7 @@
     <spring-cloud.version>2023.0.0</spring-cloud.version>
     <spring-cloud-services.version>4.0.3</spring-cloud-services.version>
     <spring-cloud-gcp.version>3.3.0</spring-cloud-gcp.version>
-    <spring-security-oauth2-jose>6.0.3</spring-security-oauth2-jose>
+    <spring-security-oauth2-jose>6.2.2</spring-security-oauth2-jose>
     <okhttp3.version>4.12.0</okhttp3.version>
     <log4j2.version>2.22.1</log4j2.version>
     <reactor-test.version>3.6.2</reactor-test.version>
@@ -176,6 +176,7 @@
           </excludes>
           <jvmArguments>
             --add-opens java.base/java.io=ALL-UNNAMED
+            --enable-preview
           </jvmArguments>
         </configuration>
       </plugin>

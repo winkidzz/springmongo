@@ -34,6 +34,10 @@ build/
 
 ### Logs ###
 *.log
+logs/
+
+### Environment Variables ###
+.env
 
 ### Local Configuration ###
 application-local.properties
@@ -59,9 +63,6 @@ buildNumber.properties
 # IDE
 *.swp
 *.swo
-
-# Logs
-logs/
 
 # OS specific
 .DS_Store
