@@ -1,9 +1,9 @@
 package com.example.demo.repository;
 
-import com.example.demo.dto.OrderSummaryDTO;
+import com.example.demo.model.Order;
 import java.time.LocalDateTime;
 import java.util.List;
 
 public interface OrderRepositoryCustom {
-    List<OrderSummaryDTO> findOrderSummariesWithMetrics(LocalDateTime startDate, LocalDateTime endDate);
+    List<Order> findOrdersByDateRange(LocalDateTime startDate, LocalDateTime endDate);
 }

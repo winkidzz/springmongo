@@ -1,52 +1,44 @@
 package com.example.demo.util;
 
-import com.example.demo.model.ProductConfig;
-import com.example.demo.repository.ProductConfigRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.example.demo.model.Order;
+import com.example.demo.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 @Component
 public class DataGenerator {
-    
-    private static final Logger logger = LoggerFactory.getLogger(DataGenerator.class);
-    
+    private final OrderRepository orderRepository;
+    private static final Random RANDOM = new Random();
+
     @Autowired
-    private ProductConfigRepository productConfigRepository;
-    
-    public void generateData() {
-        logger.info("Starting test data generation...");
-        
-        // Clear existing data
-        productConfigRepository.deleteAll();
-        logger.info("Cleared existing configurations");
-        
-        // Generate two test configurations
-        createTestConfig("test-config-1", true);
-        createTestConfig("test-config-2", false);
-        
-        logger.info("Finished generating test configurations");
+    public DataGenerator(OrderRepository orderRepository) {
+        this.orderRepository = orderRepository;
     }
-    
-    private void createTestConfig(String id, boolean enabled) {
-        LocalDateTime now = LocalDateTime.now();
-        ProductConfig config = new ProductConfig();
-        config.setId(id);
-        config.setProductId(id);
-        config.setConfigName("Test Config " + id);
-        config.setConfigValue("Value " + id);
-        config.setStartDate(now.minusDays(30));
-        config.setEndDate(now.plusDays(30));
-        config.setReleaseStartDate(now.minusDays(30));
-        config.setReleaseEndDate(now.plusDays(30));
-        config.setCreatedStartDate(now.minusDays(30));
-        config.setCreatedEndDate(now.plusDays(30));
-        config.setEnabled(enabled);
-        
-        productConfigRepository.save(config);
-        logger.info("Created test configuration: {}", id);
+
+    public void generateTestData(int numOrders) {
+        orderRepository.deleteAll();
+        List<Order> orders = new ArrayList<>();
+
+        for (int i = 0; i < numOrders; i++) {
+            Order order = new Order();
+            order.setProductId("PROD-" + (RANDOM.nextInt(100) + 1));
+            order.setCustomerId("CUST-" + (RANDOM.nextInt(1000) + 1));
+            order.setAmount(RANDOM.nextDouble() * 1000);
+            order.setStatus(getRandomStatus());
+            order.setCreatedAt(LocalDateTime.now().minusDays(RANDOM.nextInt(30)));
+            order.setUpdatedAt(LocalDateTime.now());
+            orders.add(order);
+        }
+
+        orderRepository.saveAll(orders);
     }
-} 
+
+    private String getRandomStatus() {
+        String[] statuses = { "PENDING", "PROCESSING", "COMPLETED", "CANCELLED" };
+        return statuses[RANDOM.nextInt(statuses.length)];
+    }
+}
