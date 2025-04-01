@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface OrderRepositoryCustom {
     List<Order> findOrdersByDateRange(LocalDateTime startDate, LocalDateTime endDate);
+
+    List<String> findDistinctActiveProducts();
 }

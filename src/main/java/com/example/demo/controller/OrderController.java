@@ -53,4 +53,9 @@ public class OrderController {
                 return ResponseEntity.ok(orderService.findByStatusAndCreatedBetweenAndAmountGreaterThan(status,
                                 startDate, endDate, minAmount));
         }
+
+        @GetMapping("/active-products")
+        public ResponseEntity<List<String>> getActiveProducts() {
+                return ResponseEntity.ok(orderService.findDistinctActiveProducts());
+        }
 }

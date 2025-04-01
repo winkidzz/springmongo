@@ -43,4 +43,8 @@ public class OrderService {
             LocalDateTime endDate, double amount) {
         return orderRepository.findByStatusAndCreatedBetweenAndAmountGreaterThan(status, startDate, endDate, amount);
     }
+
+    public List<String> findDistinctActiveProducts() {
+        return orderRepository.findDistinctActiveProducts();
+    }
 }
