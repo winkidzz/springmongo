@@ -47,78 +47,71 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 
                 logger.info("Starting optimized aggregation query for distinct active products at {}", now);
 
-                // APPROACH 1: Two-step query with memory caching
-                // Step 1: Get all active product configurations first (this should be very fast
-                // with proper indexing)
-                Query activeConfigQuery = new Query(
-                                Criteria.where("enabled").is(true)
-                                                .and("startDate").lte(now)
-                                                .and("endDate").gte(now));
+                // Match stage for completed orders with compound index support
+                MatchOperation matchOrders = Aggregation.match(
+                                Criteria.where("status").is("COMPLETED"));
 
-                activeConfigQuery.fields().include("productId");
+                // Lookup stage for product configurations
+                LookupOperation lookupProductConfigs = Aggregation.lookup()
+                                .from("product_configs")
+                                .localField("productId")
+                                .foreignField("productId")
+                                .as("productConfig");
 
-                // This query should use the compound index on product_configs
-                Document activeConfigHint = new Document();
-                activeConfigHint.put("enabled", 1);
-                activeConfigHint.put("startDate", 1);
-                activeConfigHint.put("endDate", 1);
-                activeConfigQuery.withHint(activeConfigHint);
+                // Unwind the product config array
+                UnwindOperation unwindProductConfig = Aggregation.unwind("productConfig");
 
-                long configStartTime = System.currentTimeMillis();
-                List<String> activeProductIds = mongoTemplate.find(activeConfigQuery, Document.class, "product_configs")
-                                .stream()
-                                .map(doc -> doc.getString("productId"))
-                                .collect(Collectors.toList());
-                long configEndTime = System.currentTimeMillis();
+                // Match stage for active product configurations
+                MatchOperation matchActiveConfigs = Aggregation.match(
+                                Criteria.where("productConfig.enabled").is(true)
+                                                .and("productConfig.startDate").lte(now)
+                                                .and("productConfig.endDate").gte(now));
 
-                logger.info("Found {} active product configurations in {} ms",
-                                activeProductIds.size(), (configEndTime - configStartTime));
+                // Group by productId to get distinct values
+                GroupOperation groupByProductId = Aggregation.group("productId");
 
-                if (activeProductIds.isEmpty()) {
-                        logger.info("No active product configurations found, returning empty list");
-                        return List.of();
-                }
+                // Project stage to format the output
+                ProjectionOperation project = Aggregation.project()
+                                .and("_id").as("productId");
 
-                // Step 2: Find orders with these product IDs and status COMPLETED
-                Query completedOrdersQuery = new Query(
-                                Criteria.where("status").is("COMPLETED")
-                                                .and("productId").in(activeProductIds));
-                completedOrdersQuery.fields().include("productId");
+                // Execute the aggregation pipeline with options but without explicit hint
+                Aggregation aggregation = Aggregation.newAggregation(
+                                matchOrders,
+                                lookupProductConfigs,
+                                unwindProductConfig,
+                                matchActiveConfigs,
+                                groupByProductId,
+                                project).withOptions(
+                                                Aggregation.newAggregationOptions()
+                                                                .allowDiskUse(true)
+                                                                .build());
 
-                // This query should use the compound index on orders
-                Document orderHint = new Document();
-                orderHint.put("status", 1);
-                orderHint.put("productId", 1);
-                completedOrdersQuery.withHint(orderHint);
-
-                long orderStartTime = System.currentTimeMillis();
-                Set<String> distinctProductIds = mongoTemplate.find(completedOrdersQuery, Document.class, "orders")
-                                .stream()
-                                .map(doc -> doc.getString("productId"))
-                                .collect(Collectors.toSet());
-                long orderEndTime = System.currentTimeMillis();
-
-                logger.info("Found {} distinct product IDs from completed orders in {} ms",
-                                distinctProductIds.size(), (orderEndTime - orderStartTime));
-
-                List<String> result = distinctProductIds.stream().toList();
+                // Execute the query
+                long executeStartTime = System.currentTimeMillis();
+                List<String> results = mongoTemplate.aggregate(
+                                aggregation,
+                                Order.class,
+                                ProductIdDTO.class).getMappedResults().stream()
+                                .map(ProductIdDTO::getProductId)
+                                .toList();
+                long executeEndTime = System.currentTimeMillis();
 
                 long endTime = System.currentTimeMillis();
                 long totalTime = endTime - startTime;
 
-                logger.info("Optimized query executed in {} ms (config lookup: {} ms, order lookup: {} ms)",
-                                totalTime,
-                                (configEndTime - configStartTime),
-                                (orderEndTime - orderStartTime));
-                logger.info("Found {} distinct active products", result.size());
+                logger.info("Aggregation query executed in {} ms (MongoDB execution: {} ms)",
+                                totalTime, (executeEndTime - executeStartTime));
+                logger.info("Found {} distinct active products", results.size());
 
-                return result;
+                return results;
         }
 
-        // Keep the original method for comparison
+        // Keep the original method for comparison but remove the problematic hint
         public List<String> findDistinctActiveProductsWithAggregation() {
                 LocalDateTime now = LocalDateTime.now();
                 long startTime = System.currentTimeMillis();
+
+                logger.info("Starting original aggregation query for distinct active products at {}", now);
 
                 // Match stage for completed orders with compound index support
                 MatchOperation matchOrders = Aggregation.match(
@@ -147,12 +140,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
                 ProjectionOperation project = Aggregation.project()
                                 .and("_id").as("productId");
 
-                // Add a hint to use the compound index
-                Document hint = new Document();
-                hint.put("status", 1);
-                hint.put("productId", 1);
-
-                // Execute the aggregation pipeline with options
+                // Execute the aggregation pipeline with options (without hint)
                 Aggregation aggregation = Aggregation.newAggregation(
                                 matchOrders,
                                 lookupProductConfigs,
@@ -163,20 +151,22 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
                                 .withOptions(
                                                 Aggregation.newAggregationOptions()
                                                                 .allowDiskUse(true)
-                                                                .hint(hint)
                                                                 .build());
 
+                long executeStartTime = System.currentTimeMillis();
                 List<String> results = mongoTemplate.aggregate(
                                 aggregation,
                                 Order.class,
                                 ProductIdDTO.class).getMappedResults().stream()
                                 .map(ProductIdDTO::getProductId)
                                 .toList();
+                long executeEndTime = System.currentTimeMillis();
 
                 long endTime = System.currentTimeMillis();
                 long totalTime = endTime - startTime;
 
-                logger.info("Aggregation pipeline query executed in {} ms", totalTime);
+                logger.info("Aggregation pipeline query executed in {} ms (MongoDB execution: {} ms)",
+                                totalTime, (executeEndTime - executeStartTime));
                 logger.info("Found {} distinct active products", results.size());
 
                 return results;
