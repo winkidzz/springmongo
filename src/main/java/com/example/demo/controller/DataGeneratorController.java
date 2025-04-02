@@ -1,21 +1,27 @@
 package com.example.demo.controller;
 
-import com.example.demo.service.DataGenerator;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.example.demo.util.DataGenerator;
 
 @RestController
 @RequestMapping("/api/data")
 public class DataGeneratorController {
-    @Autowired
-    private DataGenerator dataGenerator;
+    private final DataGenerator dataGenerator;
+
+    public DataGeneratorController(DataGenerator dataGenerator) {
+        this.dataGenerator = dataGenerator;
+    }
 
     @PostMapping("/generate")
-    public String generateTestData(@RequestParam(defaultValue = "1000") int numOrders) {
-        dataGenerator.generateTestData(numOrders);
-        return "Generated " + numOrders + " test orders";
+    public String generateData() {
+        try {
+            dataGenerator.run();
+            return "Data generation completed successfully";
+        } catch (Exception e) {
+            return "Error generating data: " + e.getMessage();
+        }
     }
 }

@@ -1,257 +1,119 @@
-# Spring Boot Product Service Demo
+# Spring Boot MongoDB Aggregation Project
 
-This is a demo Spring Boot application that provides a RESTful API for managing products and orders. The application is built with Spring Boot 3.2.3 and Java 21.
+## Overview
+This project demonstrates how to use Spring Boot with MongoDB to perform advanced aggregation operations. It focuses on building efficient aggregation pipelines for retrieving and analyzing data from MongoDB collections.
 
 ## Features
+- REST API for managing orders
+- MongoDB integration with Spring Data
+- Advanced aggregation pipelines
+- Custom repository implementations
+- Optimized database queries with indexes
+- Test data generation
 
-- RESTful API for product and order management
-- MongoDB integration with advanced aggregation pipelines
-- Spring Security configuration
-- Actuator endpoints for monitoring
-- Swagger UI for API documentation
-- Performance testing capabilities
-
-## Prerequisites
-
+## Tech Stack
+- Spring Boot 3.2.3
+- MongoDB
 - Java 21
-- Maven 3.x
-- MongoDB (running on port 27018)
+- Maven
+- Spring Data MongoDB
 
-## Getting Started
+## Key Components
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd springmongo
-   ```
+### Data Models
+- `Order`: Represents customer orders with fields like orderId, productId, status, etc.
+- `ProductConfig`: Represents product configuration with fields like enabled, startDate, endDate, etc.
 
-2. Build the project:
-   ```bash
-   mvn clean install
-   ```
+### API Endpoints
+- `GET /api/orders/active-products`: Returns a list of distinct product IDs from completed orders where the product is currently active
+- `GET /api/orders/by-date-range`: Returns orders within a specified date range
+- `GET /api/orders/by-status`: Returns orders with a specified status
+- `GET /api/orders/by-status-and-date`: Returns orders with a specified status within a date range
+- `GET /api/orders/by-status-and-amount`: Returns orders with a specified status, within a date range, and above a minimum amount
+- `POST /api/data/generate`: Generates test data for development and testing purposes
 
-3. Run the application:
-   ```bash
-   mvn spring-boot:run
-   ```
+### MongoDB Aggregation Pipeline
+The core feature of this application is the optimized aggregation pipeline for retrieving active products:
 
-The application will start on port 8081.
+```java
+// Match stage for completed orders
+MatchOperation matchOrders = Aggregation.match(
+        Criteria.where("status").is("COMPLETED"));
 
-## API Documentation
+// Lookup stage for product configurations
+LookupOperation lookupProductConfigs = Aggregation.lookup()
+        .from("product_configs")
+        .localField("productId")
+        .foreignField("productId")
+        .as("productConfig");
 
-### Product Management
+// Unwind the product config array
+UnwindOperation unwindProductConfig = Aggregation.unwind("productConfig");
 
-#### Create a Product
-- **Endpoint**: `POST /api/products`
-- **Description**: Creates a new product
-- **Request Body**: Product object with required fields
-- **Response**: Created product object
+// Match stage for active product configurations
+MatchOperation matchActiveConfigs = Aggregation.match(
+        Criteria.where("productConfig.enabled").is(true)
+                .and("productConfig.startDate").lte(now)
+                .and("productConfig.endDate").gte(now));
 
-#### Get All Products
-- **Endpoint**: `GET /api/products`
-- **Description**: Retrieves all products
-- **Response**: List of product objects
+// Group by productId to get distinct values
+GroupOperation groupByProductId = Aggregation.group("productId");
 
-#### Get Product by ID
-- **Endpoint**: `GET /api/products/{id}`
-- **Description**: Retrieves a specific product by ID
-- **Parameters**: 
-  - `id`: Product ID
-- **Response**: Product object
-
-#### Update Product
-- **Endpoint**: `PUT /api/products/{id}`
-- **Description**: Updates an existing product
-- **Parameters**:
-  - `id`: Product ID
-- **Request Body**: Updated product object
-- **Response**: Updated product object
-
-#### Delete Product
-- **Endpoint**: `DELETE /api/products/{id}`
-- **Description**: Deletes a product
-- **Parameters**:
-  - `id`: Product ID
-- **Response**: Success/error message
-
-### Order Management
-
-#### Get All Orders
-- **Endpoint**: `GET /api/orders`
-- **Description**: Lists all orders in the order table
-- **Implementation**: Uses standard `findAll()` method from MongoRepository
-- **Response**: List of order objects
-
-#### Get Active Orders
-- **Endpoint**: `GET /api/orders/active`
-- **Description**: Lists only active orders by joining with product_configs
-- **Features**:
-  - Filters for enabled configurations
-  - Validates date ranges (within start and end dates)
-  - Returns full order objects with associated product configurations
-- **MongoDB Pipeline**:
-  ```javascript
-  [
-    { $lookup: { 
-      from: 'product_configs', 
-      localField: 'productConfigId', 
-      foreignField: '_id', 
-      as: 'productConfig' 
-    }},
-    { $unwind: '$productConfig' },
-    { $match: { 'productConfig.enabled': true } }
-  ]
-  ```
-- **Response**: List of active order objects with their configurations
-
-#### Get Active Product ID Summary
-- **Endpoint**: `GET /api/orders/active/filter/productidsummary`
-- **Description**: Returns a summary of distinct product IDs from active orders
-- **Features**:
-  - Includes count of orders and total amount for each product ID
-  - Only includes products with active configurations
-- **MongoDB Pipeline**:
-  ```javascript
-  [
-    { $lookup: { 
-      from: 'product_configs', 
-      localField: 'productConfigId', 
-      foreignField: '_id', 
-      as: 'productConfig' 
-    }},
-    { $unwind: '$productConfig' },
-    { $match: { 'productConfig.enabled': true } },
-    { $group: { 
-      _id: '$productId', 
-      count: { $sum: 1 } 
-    }}
-  ]
-  ```
-- **Response**: List of product summaries with counts
-
-### Performance Testing
-
-#### Generate Test Data
-- **Endpoint**: `POST /api/performance-test/generate`
-- **Description**: Generates test data for performance testing
-- **Parameters**:
-  - `numOrders` (default: 1000): Number of orders to generate
-  - `numConfigs` (default: 5): Number of configurations to generate
-- **Response**: Generation status and counts
-
-#### Get Statistics
-- **Endpoint**: `GET /api/performance-test/stats`
-- **Description**: Retrieves performance test statistics
-- **Response**: Statistics displayed in logs
-
-#### Clear Test Data
-- **Endpoint**: `DELETE /api/performance-test/clear`
-- **Description**: Clears all test data
-- **Response**: Clear operation status
-
-## Testing
-
-Run the tests using:
-```bash
-mvn test
+// Project stage to format the output
+ProjectionOperation project = Aggregation.project()
+        .and("_id").as("productId");
 ```
 
-## Configuration
+### Database Optimization
+- Compound indexes to support the aggregation pipeline stages
+- Single-field indexes for individual queries
+- Efficient date range queries
 
-The application configuration can be found in `src/main/resources/application.properties`. Key configurations include:
+## Performance Considerations
+- The aggregation pipeline is optimized to filter data early in the process
+- Indexes support the filtering criteria
+- The `allowDiskUse` option enables processing of large datasets
+- Performance metrics are logged for monitoring query execution times
 
-- MongoDB connection settings
-- Server port (default: 8081)
-- Actuator endpoints
-- Security settings
+## Setup and Configuration
 
-## MongoDB Aggregation Pipelines
+### Prerequisites
+- Java 21
+- Maven
+- MongoDB server
 
-The application uses several MongoDB aggregation pipelines for complex queries:
+### Configuration
+The MongoDB connection settings can be found in the `application.properties` file:
 
-1. **Order Summaries Pipeline**:
-   ```javascript
-   [
-     { $match: { 
-       status: { $in: ['PENDING', 'PROCESSING', 'CANCELLED'] },
-       price: { $gt: 10 },
-       orderDate: { $gte: ?0 }
-     }},
-     { $lookup: { 
-       from: 'product_configs',
-       localField: 'productId',
-       foreignField: 'productId',
-       as: 'productConfig'
-     }},
-     { $unwind: '$productConfig' },
-     { $match: {
-       'productConfig.enabled': true,
-       'productConfig.startDate': { $gte: ?0 },
-       'productConfig.endDate': { $lte: ?1 }
-     }},
-     { $group: {
-       _id: '$productName',
-       totalOrders: { $sum: 1 },
-       totalQuantity: { $sum: '$quantity' },
-       totalPrice: { $sum: { $multiply: ['$price', '$quantity'] } },
-       averagePrice: { $avg: '$price' },
-       statusCounts: {
-         $push: {
-           status: '$status',
-           count: 1
-         }
-       }
-     }},
-     { $project: {
-       _id: 0,
-       productName: '$_id',
-       totalOrders: 1,
-       totalQuantity: 1,
-       totalPrice: 1,
-       averagePrice: 1,
-       statusBreakdown: {
-         $map: {
-           input: '$statusCounts',
-           as: 'status',
-           in: {
-             status: '$$status.status',
-             count: '$$status.count'
-           }
-         }
-       }
-     }}
-   ]
-   ```
+```properties
+spring.data.mongodb.host=192.168.1.198
+spring.data.mongodb.port=27018
+spring.data.mongodb.database=orders
+spring.data.mongodb.connect-timeout=5000
+spring.data.mongodb.socket-timeout=10000
+```
 
-2. **Order Summary Pipeline**:
-   ```javascript
-   [
-     { $group: {
-       _id: null,
-       totalOrders: { $sum: 1 },
-       totalAmount: { $sum: '$amount' },
-       avgAmount: { $avg: '$amount' }
-     }},
-     { $project: {
-       _id: 0,
-       totalOrders: 1,
-       totalAmount: 1,
-       avgAmount: 1
-     }}
-   ]
-   ```
+### Running the Application
+```bash
+mvn spring-boot:run
+```
 
-## Management Script
+## Test Data Generation
+The application includes a data generator that creates test orders and product configurations:
 
-The application includes a PowerShell management script (`spring-boot-management.ps1`) that provides functions for:
+```bash
+curl -X POST "http://localhost:8081/api/data/generate"
+```
 
-- Checking if Spring Boot is running
-- Stopping Spring Boot processes
-- Starting Spring Boot in a new shell
-- Monitoring application health
-- Troubleshooting startup issues
+## Example Queries
+Get active products:
+```bash
+curl -X GET "http://localhost:8081/api/orders/active-products"
+```
 
-To use the management script:
-```powershell
-.\spring-boot-management.ps1
-``` 
+## Development Guidelines
+- Follow the existing package structure
+- Use Spring Data MongoDB repositories when possible
+- Implement custom repository methods using the `MongoTemplate` for complex queries
+- Always create appropriate indexes for query patterns
+- Use the aggregation framework for complex data transformations and queries 
