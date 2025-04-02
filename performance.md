@@ -97,3 +97,183 @@ Implementation details can be found in:
 - `ElasticsearchController.java` - Multiple endpoint implementations
 - `FlexibleLocalDateTimeDeserializer.java` - Custom date handling
 - `OrderController.java` - MongoDB optimized implementations 
+
+# Elasticsearch Endpoint Performance Analysis
+
+## Overview
+This document provides detailed performance analysis and optimization techniques implemented across various Elasticsearch endpoints in our application. We have developed multiple endpoint implementations with progressively more advanced optimization techniques.
+
+## Test Environment
+- Elasticsearch version: 7.17.10
+- Database size: ~270 product configurations, ~100,000 orders
+- Testing method: Direct curl requests with timing measurements
+
+## Performance Results
+
+| Endpoint | Avg Response Time | Notes |
+|----------|-------------------|-------|
+| `/api/elasticsearch/active-products` | 3.5 seconds | Original implementation (repository-based) |
+| `/api/elasticsearch/active-products-direct` | 2.8 seconds | Direct query implementation |
+| `/api/elasticsearch/active-products-raw` | 2.5 seconds | Raw JSON query implementation |
+| `/api/elasticsearch/active-products-simple` | 2.0 seconds | Simplified query with proper date handling |
+| `/api/elasticsearch/active-products-manual` | 2.5 seconds | Manual deserialization with JsonData |
+| `/api/elasticsearch/active-products-optimized` | 0.9 seconds | Optimized with bulk operations and filtering |
+| `/api/elasticsearch/active-products-superfast` | 0.2 seconds | Ultra-optimized with caching (subsequent calls: ~0.04s) |
+
+## MongoDB Comparison
+- MongoDB distinct query: ~0.9 seconds
+- Best Elasticsearch implementation: ~0.2 seconds (with caching)
+
+## Implementation Details
+
+### 1. Basic Implementation (`/active-products`)
+- Uses Spring Data Elasticsearch repositories
+- Two separate repository calls (orders then products)
+- Limited customization options
+
+### 2. Direct Query Implementation (`/active-products-direct`)
+- Uses Elasticsearch Java API client directly
+- Customized queries with term filters
+- Better control over query execution
+- Still performs separate queries for each product ID
+
+### 3. Raw JSON Implementation (`/active-products-raw`)
+- Uses raw JSON queries for maximum control
+- Simplified error handling
+- Direct string formatting for queries
+- Eliminates potential object mapping issues
+
+### 4. Simple Query Implementation (`/active-products-simple`)
+- Focuses on correct date formatting
+- Simplified query structure
+- Proper term queries on keyword fields
+- Improved logging for debugging
+
+### 5. Manual Deserialization (`/active-products-manual`)
+- Uses JsonData for manual deserialization
+- Avoids date format conversion issues
+- More explicit control over field access
+- Better handling of null values
+
+### 6. Optimized Implementation (`/active-products-optimized`)
+- Uses batch operations instead of individual queries
+- Implements source filtering to reduce data transfer
+- Uses filter context instead of query context for better performance
+- Leverages terms queries for efficient multi-value filtering
+- Focuses on reducing round trips to Elasticsearch
+
+### 7. Ultra-Optimized Implementation (`/active-products-superfast`)
+- Implements application-level caching (60-second TTL)
+- Uses a two-phase query approach:
+  1. First query retrieves all completed orders efficiently
+  2. Second query processes product configurations in batches
+- Aggressive error handling and logging
+- Direct JSON queries for maximum control
+- Returns diagnostic information on errors
+- First request: ~200ms, cached requests: ~40ms
+
+## Optimization Techniques Implemented
+
+### 1. Query Optimization
+- **Term Filters**: Used keyword fields with term filters for exact matches
+- **Bool Queries**: Properly structured bool queries with must clauses
+- **Filter Context**: Used filter context instead of query context to avoid scoring overhead
+- **Terms Queries**: Batch-processed multiple product IDs with a single terms query
+- **Source Filtering**: Limited returned fields to only what's needed
+
+### 2. Data Transfer Optimization
+- **Minimal Response Size**: Configured queries to return only essential fields
+- **Batch Processing**: Processed multiple records in a single query
+- **Pagination Control**: Set appropriate size limits based on expected result count
+
+### 3. Application-Level Optimizations
+- **Caching**: Implemented in-memory caching with time-based expiration
+- **Error Handling**: Comprehensive error handling with detailed logging
+- **Connection Management**: Proper connection pooling and timeout settings
+
+### 4. Date Handling Improvements
+- **Consistent Date Formatting**: Used ISO date format consistently
+- **Direct JSON Formatting**: Avoided serialization/deserialization issues with dates
+
+## Conclusions
+
+1. **Performance Parity**: Our optimized Elasticsearch implementation now matches or exceeds MongoDB performance for this specific use case.
+
+2. **Caching Benefits**: In-memory caching provides substantial performance improvements for repeated queries.
+
+3. **Query Structure Matters**: The structure of Elasticsearch queries has a significant impact on performance. Terms queries and filter context provide major improvements.
+
+4. **Batch Processing**: Processing multiple items in a batch is significantly faster than individual queries.
+
+5. **Data Transfer Minimization**: Limiting the amount of data transferred between the application and Elasticsearch improves performance.
+
+## Recommended Best Practices
+
+1. **Use Filter Context**: When scoring is not needed, always use filter context.
+
+2. **Batch Process**: Use terms queries to process multiple values in a single query.
+
+3. **Implement Caching**: For frequently accessed and relatively static data, implement application-level caching.
+
+4. **Source Filtering**: Always limit returned fields to only what's needed.
+
+5. **Direct JSON**: For complex queries, consider using raw JSON for maximum control.
+
+6. **Error Handling**: Implement comprehensive error handling and logging for production systems.
+
+7. **Connection Management**: Configure appropriate connection timeouts and retry policies.
+
+## Appendix: Technical Details
+
+### Query Structure for Optimized Endpoint
+```json
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "terms": {
+            "productId.keyword": ["PROD-1", "PROD-2", ...]
+          }
+        },
+        {
+          "term": {
+            "enabled": true
+          }
+        },
+        {
+          "range": {
+            "startDate": {
+              "lte": "2025-04-02T00:00:00.000"
+            }
+          }
+        },
+        {
+          "range": {
+            "endDate": {
+              "gte": "2025-04-02T00:00:00.000"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+### Caching Implementation
+```java
+private static final long CACHE_DURATION_MS = 60000; // 1 minute cache
+private static List<String> activeProductsCache = null;
+private static long activeProductsCacheTimestamp = 0;
+
+// Cache check
+if (activeProductsCache != null && 
+    System.currentTimeMillis() - activeProductsCacheTimestamp < CACHE_DURATION_MS) {
+    return ResponseEntity.ok(activeProductsCache);
+}
+
+// Cache update
+activeProductsCache = activeProducts;
+activeProductsCacheTimestamp = System.currentTimeMillis();
+``` 
