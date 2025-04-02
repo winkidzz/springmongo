@@ -62,4 +62,14 @@ public class OrderService {
     public List<String> findDistinctActiveProducts() {
         return orderRepositoryCustom.findDistinctActiveProducts();
     }
+
+    public List<String> findDistinctActiveProductsOptimized() {
+        return ((com.example.demo.repository.OrderRepositoryImpl) orderRepositoryCustom)
+                .findDistinctActiveProductsOptimized();
+    }
+
+    public List<String> findDistinctActiveProductsWithMongoDistinct() {
+        return ((com.example.demo.repository.OrderRepositoryImpl) orderRepositoryCustom)
+                .findDistinctActiveProductsWithMongoDistinct();
+    }
 }

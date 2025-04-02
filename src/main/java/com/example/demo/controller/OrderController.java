@@ -58,4 +58,14 @@ public class OrderController {
         public ResponseEntity<List<String>> getActiveProducts() {
                 return ResponseEntity.ok(orderService.findDistinctActiveProducts());
         }
+
+        @GetMapping("/active-products-optimized")
+        public ResponseEntity<List<String>> getActiveProductsOptimized() {
+                return ResponseEntity.ok(orderService.findDistinctActiveProductsOptimized());
+        }
+
+        @GetMapping("/active-products-mongo-distinct")
+        public ResponseEntity<List<String>> getActiveProductsWithMongoDistinct() {
+                return ResponseEntity.ok(orderService.findDistinctActiveProductsWithMongoDistinct());
+        }
 }
