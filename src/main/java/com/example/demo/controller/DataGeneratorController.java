@@ -18,8 +18,10 @@ public class DataGeneratorController {
     @PostMapping("/generate")
     public String generateData() {
         try {
-            dataGenerator.run();
-            return "Data generation completed successfully";
+            long startTime = System.currentTimeMillis();
+            dataGenerator.generateTestData();
+            long endTime = System.currentTimeMillis();
+            return "Data generation completed successfully in " + (endTime - startTime) / 1000 + " seconds";
         } catch (Exception e) {
             return "Error generating data: " + e.getMessage();
         }

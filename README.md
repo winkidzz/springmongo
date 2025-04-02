@@ -10,6 +10,7 @@ This project demonstrates how to use Spring Boot with MongoDB to perform advance
 - Custom repository implementations
 - Optimized database queries with indexes
 - Test data generation
+- Database statistics monitoring
 
 ## Tech Stack
 - Spring Boot 3.2.3
@@ -31,6 +32,7 @@ This project demonstrates how to use Spring Boot with MongoDB to perform advance
 - `GET /api/orders/by-status-and-date`: Returns orders with a specified status within a date range
 - `GET /api/orders/by-status-and-amount`: Returns orders with a specified status, within a date range, and above a minimum amount
 - `POST /api/data/generate`: Generates test data for development and testing purposes
+- `GET /api/db-stats/collections`: Returns statistics about MongoDB collections and database
 
 ### MongoDB Aggregation Pipeline
 The core feature of this application is the optimized aggregation pipeline for retrieving active products:
@@ -110,6 +112,24 @@ Get active products:
 ```bash
 curl -X GET "http://localhost:8081/api/orders/active-products"
 ```
+
+Get database statistics:
+```bash
+curl -X GET "http://localhost:8081/api/db-stats/collections"
+```
+
+## Database Statistics
+The `/api/db-stats/collections` endpoint provides the following information:
+- Document count for each collection
+- Size of each collection in KB
+- Average document size in bytes
+- Storage size for each collection in KB
+- Number of indexes per collection
+- Total index size in KB
+- Database name and overall statistics
+- Number of collections and views in the database
+
+This information is useful for monitoring the database size and performance.
 
 ## Development Guidelines
 - Follow the existing package structure
