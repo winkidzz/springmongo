@@ -105,6 +105,8 @@ This document provides detailed performance analysis and optimization techniques
 
 ## Test Environment
 - Elasticsearch version: 7.17.10
+- MongoDB version: 7.0
+- Redis version: 7.2 (Alpine)
 - Database size: ~270 product configurations, ~100,000 orders
 - Testing method: Direct curl requests with timing measurements
 
@@ -118,11 +120,14 @@ This document provides detailed performance analysis and optimization techniques
 | `/api/elasticsearch/active-products-simple` | 2.0 seconds | Simplified query with proper date handling |
 | `/api/elasticsearch/active-products-manual` | 2.5 seconds | Manual deserialization with JsonData |
 | `/api/elasticsearch/active-products-optimized` | 0.9 seconds | Optimized with bulk operations and filtering |
-| `/api/elasticsearch/active-products-superfast` | 0.2 seconds | Ultra-optimized with caching (subsequent calls: ~0.04s) |
+| `/api/elasticsearch/active-products-superfast` | 0.2 seconds | Ultra-optimized with in-memory caching (subsequent calls: ~0.04s) |
+| `/api/redis/active-products/elasticsearch` | 0.2 seconds | First call, 2-3ms for subsequent (Redis-cached) |
+| `/api/redis/active-products/mongodb` | 0.9 seconds | First call, 2-3ms for subsequent (Redis-cached) |
 
 ## MongoDB Comparison
 - MongoDB distinct query: ~0.9 seconds
 - Best Elasticsearch implementation: ~0.2 seconds (with caching)
+- Best overall: Redis-cached solutions (2-3ms after first call)
 
 ## Implementation Details
 
@@ -172,6 +177,14 @@ This document provides detailed performance analysis and optimization techniques
 - Returns diagnostic information on errors
 - First request: ~200ms, cached requests: ~40ms
 
+### 8. Redis-Cached Implementations (`/api/redis/active-products/*`)
+- Implements Redis as a distributed cache layer
+- Separates caching logic from business logic
+- Provides consistent API for both Elasticsearch and MongoDB data
+- Configurable TTL (time-to-live) for cached results
+- Includes cache management endpoints for clearing and monitoring
+- First request: same as original endpoint, subsequent: 2-3ms
+
 ## Optimization Techniques Implemented
 
 ### 1. Query Optimization
@@ -187,13 +200,21 @@ This document provides detailed performance analysis and optimization techniques
 - **Pagination Control**: Set appropriate size limits based on expected result count
 
 ### 3. Application-Level Optimizations
-- **Caching**: Implemented in-memory caching with time-based expiration
+- **In-Memory Caching**: Implemented in-memory caching with time-based expiration
+- **Distributed Redis Caching**: Added Redis as a distributed cache layer 
 - **Error Handling**: Comprehensive error handling with detailed logging
 - **Connection Management**: Proper connection pooling and timeout settings
 
 ### 4. Date Handling Improvements
 - **Consistent Date Formatting**: Used ISO date format consistently
 - **Direct JSON Formatting**: Avoided serialization/deserialization issues with dates
+
+### 5. Redis Caching Benefits
+- **Distributed Caching**: Shared cache across multiple application instances
+- **Cache Persistence**: Redis persistence ensures cache survives application restarts
+- **Configurable TTL**: Time-based expiration can be configured per cache entry
+- **Atomic Operations**: Redis provides atomic operations for cache manipulation
+- **Monitoring**: Easy to monitor cache hit/miss rates and performance
 
 ## Conclusions
 
@@ -207,6 +228,8 @@ This document provides detailed performance analysis and optimization techniques
 
 5. **Data Transfer Minimization**: Limiting the amount of data transferred between the application and Elasticsearch improves performance.
 
+6. **Redis Advantage**: Redis provides the best performance (2-3ms) for repeated queries while offering distributed caching benefits.
+
 ## Recommended Best Practices
 
 1. **Use Filter Context**: When scoring is not needed, always use filter context.
@@ -215,13 +238,15 @@ This document provides detailed performance analysis and optimization techniques
 
 3. **Implement Caching**: For frequently accessed and relatively static data, implement application-level caching.
 
-4. **Source Filtering**: Always limit returned fields to only what's needed.
+4. **Use Redis for Production**: In production environments, use Redis as a distributed cache instead of in-memory caching.
 
-5. **Direct JSON**: For complex queries, consider using raw JSON for maximum control.
+5. **Source Filtering**: Always limit returned fields to only what's needed.
 
-6. **Error Handling**: Implement comprehensive error handling and logging for production systems.
+6. **Direct JSON**: For complex queries, consider using raw JSON for maximum control.
 
-7. **Connection Management**: Configure appropriate connection timeouts and retry policies.
+7. **Error Handling**: Implement comprehensive error handling and logging for production systems.
+
+8. **Connection Management**: Configure appropriate connection timeouts and retry policies.
 
 ## Appendix: Technical Details
 
@@ -261,19 +286,40 @@ This document provides detailed performance analysis and optimization techniques
 }
 ```
 
-### Caching Implementation
+### Redis Caching Implementation
 ```java
-private static final long CACHE_DURATION_MS = 60000; // 1 minute cache
-private static List<String> activeProductsCache = null;
-private static long activeProductsCacheTimestamp = 0;
+// Redis configuration
+@Configuration
+@EnableCaching
+public class RedisConfig {
+    @Bean
+    public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+        RedisCacheConfiguration cacheConfig = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(Duration.ofMillis(timeToLive))
+                .serializeKeysWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
+                .serializeValuesWith(RedisSerializationContext.SerializationPair
+                        .fromSerializer(new GenericJackson2JsonRedisSerializer()));
 
-// Cache check
-if (activeProductsCache != null && 
-    System.currentTimeMillis() - activeProductsCacheTimestamp < CACHE_DURATION_MS) {
-    return ResponseEntity.ok(activeProductsCache);
+        return RedisCacheManager.builder(connectionFactory)
+                .cacheDefaults(cacheConfig)
+                .build();
+    }
 }
 
-// Cache update
-activeProductsCache = activeProducts;
-activeProductsCacheTimestamp = System.currentTimeMillis();
-``` 
+// Cache service usage
+public List<String> getElasticsearchActiveProductsWithRedisCache() {
+    // Check Redis cache first
+    List<String> cachedResult = cacheService.getElasticsearchActiveProducts();
+    if (cachedResult != null) {
+        return cachedResult;  // Cache hit
+    }
+    
+    // Cache miss - query Elasticsearch
+    List<String> activeProducts = elasticsearchService.findDistinctActiveProductsES();
+    
+    // Cache the result
+    cacheService.cacheElasticsearchActiveProducts(activeProducts);
+    
+    return activeProducts;
+} 
