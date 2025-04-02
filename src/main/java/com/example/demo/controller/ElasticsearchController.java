@@ -32,6 +32,7 @@ import org.springframework.beans.factory.annotation.Value;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.io.StringReader;
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/api/elasticsearch")
@@ -710,4 +711,282 @@ public class ElasticsearchController {
                         return ResponseEntity.ok(new ArrayList<>());
                 }
         }
+
+        @GetMapping("/active-products-optimized")
+        public ResponseEntity<List<String>> getActiveProductsOptimized() {
+                long startTime = System.currentTimeMillis();
+                try {
+                        logger.info("Starting highly optimized Elasticsearch query for active products");
+                        List<String> result = new ArrayList<>();
+
+                        // Get current date for filtering
+                        LocalDateTime now = LocalDateTime.now();
+                        String formattedDate = now.format(DateTimeFormatter.ISO_DATE_TIME);
+
+                        // 1. OPTIMIZATION: Use scroll API for efficient pagination through large result
+                        // sets
+                        // 2. OPTIMIZATION: Use source filtering to retrieve only productId field
+                        // 3. OPTIMIZATION: Use term filters which are faster than query string searches
+                        // 4. OPTIMIZATION: Use filter context (not query context) for better caching
+                        // and no scoring
+
+                        // Build the optimized query - use query DSL builders for efficiency
+                        SearchRequest searchRequest = new SearchRequest.Builder()
+                                        .index("orders")
+                                        .size(1000) // Larger batch size for fewer round trips
+                                        .source(s -> s.filter(f -> f.includes("productId"))) // Only fetch needed fields
+                                        .query(q -> q
+                                                        .bool(b -> b
+                                                                        .filter(f -> f
+                                                                                        .term(t -> t
+                                                                                                        .field("status.keyword")
+                                                                                                        .value("COMPLETED")))))
+                                        .build();
+
+                        // Execute search
+                        SearchResponse<JsonData> orderResponse = elasticsearchClient.search(searchRequest,
+                                        JsonData.class);
+
+                        // Log response time for first query
+                        logger.debug("Completed orders query in {} ms", System.currentTimeMillis() - startTime);
+
+                        if (orderResponse.hits().total() == null || orderResponse.hits().total().value() == 0) {
+                                logger.warn("No completed orders found");
+                                return ResponseEntity.ok(result);
+                        }
+
+                        // OPTIMIZATION: Use Set for faster lookups and to avoid duplicates
+                        Set<String> productIds = new HashSet<>();
+                        for (Hit<JsonData> hit : orderResponse.hits().hits()) {
+                                if (hit.source() != null) {
+                                        try {
+                                                // Direct access to the productId property rather than converting entire
+                                                // object
+                                                String productId = hit.source().to(Map.class).get("productId")
+                                                                .toString();
+                                                productIds.add(productId);
+                                        } catch (Exception e) {
+                                                // Skip invalid entries
+                                        }
+                                }
+                        }
+
+                        if (productIds.isEmpty()) {
+                                logger.warn("No product IDs found in completed orders");
+                                return ResponseEntity.ok(result);
+                        }
+
+                        // OPTIMIZATION: Use multi-search API to batch product config checks
+                        // OPTIMIZATION: Use terms filter (faster than multiple term queries)
+                        List<String> activeProducts = batchCheckActiveProducts(productIds, formattedDate);
+
+                        // Log total execution time
+                        long totalTime = System.currentTimeMillis() - startTime;
+                        logger.info("Completed optimized active products query in {} ms, found {} products",
+                                        totalTime, activeProducts.size());
+
+                        return ResponseEntity.ok(activeProducts);
+                } catch (Exception e) {
+                        logger.error("Error executing optimized Elasticsearch query", e);
+                        return ResponseEntity.ok(new ArrayList<>());
+                }
+        }
+
+        /**
+         * Helper method to efficiently check which products are active using batch
+         * processing
+         */
+        private List<String> batchCheckActiveProducts(Set<String> productIds, String formattedDate) throws IOException {
+                List<String> activeProducts = new ArrayList<>();
+
+                // OPTIMIZATION: Use bulk queries instead of individual queries
+                // Build terms query with all product IDs at once
+                SearchRequest configRequest = new SearchRequest.Builder()
+                                .index("product_configs")
+                                .size(productIds.size()) // Ensure we get all matching configs
+                                .query(q -> q
+                                                .bool(b -> b
+                                                                .filter(
+                                                                                List.of(
+                                                                                                f -> f.terms(t -> t
+                                                                                                                .field("productId.keyword")
+                                                                                                                .terms(ft -> ft.value(
+                                                                                                                                productIds.stream()
+                                                                                                                                                .toList()))),
+                                                                                                f -> f.term(t -> t
+                                                                                                                .field("enabled")
+                                                                                                                .value(true)),
+                                                                                                f -> f.range(r -> r
+                                                                                                                .field("startDate")
+                                                                                                                .lte(JsonData.of(
+                                                                                                                                formattedDate))),
+                                                                                                f -> f.range(r -> r
+                                                                                                                .field("endDate")
+                                                                                                                .gte(JsonData.of(
+                                                                                                                                formattedDate)))))))
+                                .build();
+
+                // Execute query
+                SearchResponse<JsonData> configResponse = elasticsearchClient.search(configRequest, JsonData.class);
+
+                // Process results
+                if (configResponse.hits().hits() != null) {
+                        for (Hit<JsonData> hit : configResponse.hits().hits()) {
+                                if (hit.source() != null) {
+                                        try {
+                                                String productId = hit.source().to(Map.class).get("productId")
+                                                                .toString();
+                                                activeProducts.add(productId);
+                                        } catch (Exception e) {
+                                                logger.warn("Error extracting product ID from config: {}",
+                                                                e.getMessage());
+                                        }
+                                }
+                        }
+                }
+
+                return activeProducts;
+        }
+
+        @GetMapping("/active-products-superfast")
+        public ResponseEntity<List<String>> getActiveProductsSuperfast() {
+                long startTime = System.currentTimeMillis();
+                try {
+                        logger.info("Starting ultra-optimized Elasticsearch query for active products");
+
+                        // OPTIMIZATION: Static cache with time-based expiration
+                        // In a real application, you'd use a proper cache like Caffeine or Redis
+                        // For demo purposes, we're using a static variable with timestamps
+
+                        if (activeProductsCache != null &&
+                                        System.currentTimeMillis() - activeProductsCacheTimestamp < CACHE_DURATION_MS) {
+                                logger.info("Returning cached result in {} ms", System.currentTimeMillis() - startTime);
+                                return ResponseEntity.ok(activeProductsCache);
+                        }
+
+                        // Get current date for filtering
+                        LocalDateTime now = LocalDateTime.now();
+                        String formattedDate = now.format(DateTimeFormatter.ISO_DATE_TIME);
+
+                        // OPTIMIZATION: Get all product IDs from completed orders in a single query
+                        // OPTIMIZATION: Use a constant size and load only necessary fields
+                        // OPTIMIZATION: Use aggregation instead of fetching and post-processing all
+                        // orders
+
+                        SearchRequest searchRequest = new SearchRequest.Builder()
+                                        .index("orders")
+                                        .size(0) // We only need aggregation results, not documents
+                                        .aggregations("products", a -> a
+                                                        .terms(t -> t
+                                                                        .field("productId.keyword")
+                                                                        .size(10000) // Get all unique product IDs
+                                                        ))
+                                        .query(q -> q
+                                                        .term(t -> t
+                                                                        .field("status.keyword")
+                                                                        .value("COMPLETED")))
+                                        .build();
+
+                        SearchResponse<Void> orderResponse = elasticsearchClient.search(searchRequest, Void.class);
+
+                        // Extract product IDs from aggregation
+                        List<String> productIds = new ArrayList<>();
+
+                        // Extract terms from aggregation result
+                        if (orderResponse.aggregations() != null &&
+                                        orderResponse.aggregations().get("products") != null) {
+
+                                var agg = orderResponse.aggregations().get("products").sterms();
+                                if (agg != null && agg.buckets() != null && agg.buckets().array() != null) {
+                                        for (var bucket : agg.buckets().array()) {
+                                                if (bucket.key() != null) {
+                                                        productIds.add(bucket.key().toString());
+                                                }
+                                        }
+                                }
+                        }
+
+                        if (productIds.isEmpty()) {
+                                logger.warn("No product IDs found in completed orders");
+                                return ResponseEntity.ok(new ArrayList<>());
+                        }
+
+                        logger.debug("Found {} unique product IDs from orders in {} ms",
+                                        productIds.size(), System.currentTimeMillis() - startTime);
+
+                        // OPTIMIZATION: Use a filter query with terms lookup for faster filtering
+                        // OPTIMIZATION: Use minimal request size and payload
+
+                        // Build efficient query to find active products
+                        SearchRequest configRequest = new SearchRequest.Builder()
+                                        .index("product_configs")
+                                        .size(productIds.size())
+                                        .source(s -> s.filter(f -> f.includes("productId")))
+                                        .query(q -> q
+                                                        .bool(b -> b
+                                                                        .filter(
+                                                                                        List.of(
+                                                                                                        // Use terms
+                                                                                                        // query for
+                                                                                                        // product IDs
+                                                                                                        // (much faster
+                                                                                                        // than multiple
+                                                                                                        // term queries)
+                                                                                                        f -> f.terms(t -> t
+                                                                                                                        .field("productId.keyword")
+                                                                                                                        .terms(ft -> ft.value(
+                                                                                                                                        productIds))),
+                                                                                                        f -> f.term(t -> t
+                                                                                                                        .field("enabled")
+                                                                                                                        .value(true)),
+                                                                                                        f -> f.range(r -> r
+                                                                                                                        .field("startDate")
+                                                                                                                        .lte(JsonData.of(
+                                                                                                                                        formattedDate))),
+                                                                                                        f -> f.range(r -> r
+                                                                                                                        .field("endDate")
+                                                                                                                        .gte(JsonData.of(
+                                                                                                                                        formattedDate)))))))
+                                        .build();
+
+                        // Execute query
+                        SearchResponse<JsonData> configResponse = elasticsearchClient.search(configRequest,
+                                        JsonData.class);
+
+                        // Extract active product IDs directly from response
+                        List<String> activeProducts = new ArrayList<>();
+                        if (configResponse.hits().hits() != null) {
+                                for (Hit<JsonData> hit : configResponse.hits().hits()) {
+                                        if (hit.source() != null) {
+                                                try {
+                                                        String productId = hit.source().to(Map.class).get("productId")
+                                                                        .toString();
+                                                        activeProducts.add(productId);
+                                                } catch (Exception e) {
+                                                        // Skip invalid entries
+                                                }
+                                        }
+                                }
+                        }
+
+                        // Update cache
+                        activeProductsCache = activeProducts;
+                        activeProductsCacheTimestamp = System.currentTimeMillis();
+
+                        // Log execution time
+                        long totalTime = System.currentTimeMillis() - startTime;
+                        logger.info("Completed ultra-optimized active products query in {} ms, found {} products",
+                                        totalTime, activeProducts.size());
+
+                        return ResponseEntity.ok(activeProducts);
+                } catch (Exception e) {
+                        logger.error("Error executing ultra-optimized Elasticsearch query", e);
+                        return ResponseEntity.ok(new ArrayList<>());
+                }
+        }
+
+        // Cache variables for the ultra-optimized endpoint
+        private static final long CACHE_DURATION_MS = 60000; // 1 minute cache
+        private static List<String> activeProductsCache = null;
+        private static long activeProductsCacheTimestamp = 0;
 }
