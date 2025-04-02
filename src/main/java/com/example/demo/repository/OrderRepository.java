@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
-public interface OrderRepository extends MongoRepository<Order, String>, OrderRepositoryCustom {
+public interface OrderRepository extends MongoRepository<Order, String> {
         List<Order> findByStatus(String status);
 
         @Query(value = "{ 'status': ?0, 'createdAt': { $gte: ?1 } }")
