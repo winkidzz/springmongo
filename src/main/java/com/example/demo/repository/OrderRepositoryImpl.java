@@ -177,4 +177,71 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 
                 return results;
         }
+
+        // Implementation using proper index hints
+        public List<String> findDistinctActiveProductsWithHint() {
+                LocalDateTime now = LocalDateTime.now();
+                long startTime = System.currentTimeMillis();
+
+                logger.info("Starting aggregation query with proper index hint for active products at {}", now);
+
+                // Create the proper hint document for the orders collection
+                Document orderHint = new Document("status", 1).append("productId", 1);
+
+                // Match stage for completed orders with compound index support
+                MatchOperation matchOrders = Aggregation.match(
+                                Criteria.where("status").is("COMPLETED"));
+
+                // Lookup stage for product configurations
+                LookupOperation lookupProductConfigs = Aggregation.lookup()
+                                .from("product_configs")
+                                .localField("productId")
+                                .foreignField("productId")
+                                .as("productConfig");
+
+                // Unwind the product config array
+                UnwindOperation unwindProductConfig = Aggregation.unwind("productConfig");
+
+                // Match stage for active product configurations
+                MatchOperation matchActiveConfigs = Aggregation.match(
+                                Criteria.where("productConfig.enabled").is(true)
+                                                .and("productConfig.startDate").lte(now)
+                                                .and("productConfig.endDate").gte(now));
+
+                // Group by productId to get distinct values
+                GroupOperation groupByProductId = Aggregation.group("productId");
+
+                // Project stage to format the output
+                ProjectionOperation project = Aggregation.project()
+                                .and("_id").as("productId");
+
+                // Execute the aggregation pipeline with hint option
+                Aggregation aggregation = Aggregation.newAggregation(
+                                matchOrders,
+                                lookupProductConfigs,
+                                unwindProductConfig,
+                                matchActiveConfigs,
+                                groupByProductId,
+                                project).withOptions(
+                                                Aggregation.newAggregationOptions()
+                                                                .allowDiskUse(true)
+                                                                .hint(orderHint)
+                                                                .build());
+
+                // Execute the query
+                AggregationResults<Document> aggregationResults = mongoTemplate.aggregate(
+                                aggregation,
+                                Order.class,
+                                Document.class);
+
+                List<String> results = aggregationResults.getMappedResults().stream()
+                                .map(doc -> doc.getString("productId"))
+                                .collect(Collectors.toList());
+
+                long endTime = System.currentTimeMillis();
+                logger.info("Aggregation query with hint executed in {} ms", (endTime - startTime));
+                logger.info("Found {} distinct active products", results.size());
+
+                return results;
+        }
 }

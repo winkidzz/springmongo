@@ -68,4 +68,9 @@ public class OrderController {
         public ResponseEntity<List<String>> getActiveProductsWithMongoDistinct() {
                 return ResponseEntity.ok(orderService.findDistinctActiveProductsWithMongoDistinct());
         }
+
+        @GetMapping("/active-products-with-hint")
+        public ResponseEntity<List<String>> getActiveProductsWithHint() {
+                return ResponseEntity.ok(orderService.findDistinctActiveProductsWithHint());
+        }
 }

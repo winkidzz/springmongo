@@ -72,4 +72,9 @@ public class OrderService {
         return ((com.example.demo.repository.OrderRepositoryImpl) orderRepositoryCustom)
                 .findDistinctActiveProductsWithMongoDistinct();
     }
+
+    public List<String> findDistinctActiveProductsWithHint() {
+        return ((com.example.demo.repository.OrderRepositoryImpl) orderRepositoryCustom)
+                .findDistinctActiveProductsWithHint();
+    }
 }
