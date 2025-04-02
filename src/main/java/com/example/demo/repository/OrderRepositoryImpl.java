@@ -171,4 +171,91 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 
                 return results;
         }
+
+        // Third optimized version using MongoDB's distinct operation and aggregation
+        public List<String> findDistinctActiveProductsOptimized() {
+                LocalDateTime now = LocalDateTime.now();
+                long startTime = System.currentTimeMillis();
+
+                logger.info("Starting optimized MongoDB-native distinct and aggregation query at {}", now);
+
+                // Step 1: Use MongoDB's aggregate to get distinct productIds from completed
+                // orders
+                long executeStep1StartTime = System.currentTimeMillis();
+
+                // Create optimized aggregation pipeline for distinct product IDs
+                Aggregation distinctProductsAggregation = Aggregation.newAggregation(
+                                // Match completed orders
+                                Aggregation.match(Criteria.where("status").is("COMPLETED")),
+                                // Group by productId to get distinct values
+                                Aggregation.group("productId"),
+                                // Project to include just the productId field
+                                Aggregation.project().and("_id").as("productId")).withOptions(
+                                                Aggregation.newAggregationOptions()
+                                                                .allowDiskUse(true)
+                                                                .hint(new Document("status", 1).append("productId", 1))
+                                                                .build());
+
+                List<ProductIdDTO> distinctProductIds = mongoTemplate.aggregate(
+                                distinctProductsAggregation,
+                                Order.class,
+                                ProductIdDTO.class).getMappedResults();
+
+                // Extract product IDs from the results
+                List<String> productIds = distinctProductIds.stream()
+                                .map(ProductIdDTO::getProductId)
+                                .toList();
+
+                long executeStep1EndTime = System.currentTimeMillis();
+                logger.info("Step 1 optimized distinct operation executed in {} ms, found {} distinct product IDs",
+                                (executeStep1EndTime - executeStep1StartTime), productIds.size());
+
+                if (productIds.isEmpty()) {
+                        logger.info("No completed orders found, returning empty list");
+                        return List.of();
+                }
+
+                // Step 2: Use aggregation to find active product configurations
+                long executeStep2StartTime = System.currentTimeMillis();
+
+                // Create pipeline for active product configurations
+                Aggregation activeProductsAggregation = Aggregation.newAggregation(
+                                // Match product IDs from step 1 and active conditions
+                                Aggregation.match(
+                                                Criteria.where("productId").in(productIds)
+                                                                .and("enabled").is(true)
+                                                                .and("startDate").lte(now)
+                                                                .and("endDate").gte(now)),
+                                // Group by productId again to ensure distinctness
+                                Aggregation.group("productId"),
+                                // Project to include just the productId field
+                                Aggregation.project().and("_id").as("productId")).withOptions(
+                                                Aggregation.newAggregationOptions()
+                                                                .allowDiskUse(true)
+                                                                .hint(new Document("enabled", 1).append("startDate", 1)
+                                                                                .append("endDate", 1))
+                                                                .build());
+
+                List<String> results = mongoTemplate.aggregate(
+                                activeProductsAggregation,
+                                "product_configs",
+                                ProductIdDTO.class).getMappedResults().stream()
+                                .map(ProductIdDTO::getProductId)
+                                .toList();
+
+                long executeStep2EndTime = System.currentTimeMillis();
+
+                long endTime = System.currentTimeMillis();
+                long totalTime = endTime - startTime;
+                long executionTime = (executeStep1EndTime - executeStep1StartTime) +
+                                (executeStep2EndTime - executeStep2StartTime);
+
+                logger.info("Step 2 optimized aggregation executed in {} ms, found {} active products",
+                                (executeStep2EndTime - executeStep2StartTime), results.size());
+                logger.info("MongoDB-native distinct and aggregation query executed in {} ms (MongoDB execution: {} ms)",
+                                totalTime, executionTime);
+                logger.info("Found {} distinct active products", results.size());
+
+                return results;
+        }
 }

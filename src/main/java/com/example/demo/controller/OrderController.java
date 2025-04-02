@@ -63,4 +63,9 @@ public class OrderController {
         public ResponseEntity<List<String>> getActiveProductsUsingAggregation() {
                 return ResponseEntity.ok(orderService.findDistinctActiveProductsWithAggregation());
         }
+
+        @GetMapping("/active-products-optimized")
+        public ResponseEntity<List<String>> getActiveProductsOptimized() {
+                return ResponseEntity.ok(orderService.findDistinctActiveProductsOptimized());
+        }
 }

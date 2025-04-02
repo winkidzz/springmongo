@@ -67,4 +67,9 @@ public class OrderService {
         return ((com.example.demo.repository.OrderRepositoryImpl) orderRepositoryCustom)
                 .findDistinctActiveProductsWithAggregation();
     }
+
+    public List<String> findDistinctActiveProductsOptimized() {
+        return ((com.example.demo.repository.OrderRepositoryImpl) orderRepositoryCustom)
+                .findDistinctActiveProductsOptimized();
+    }
 }
