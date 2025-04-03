@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spring Boot MongoDB, Elasticsearch, and Redis Integration</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        
+        h2 {
+            color: #2980b9;
+            margin-top: 30px;
+        }
+        
+        h3 {
+            color: #16a085;
+            margin-top: 20px;
+        }
+        
+        ul {
+            padding-left: 20px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+        }
+        
+        .card h3 {
+            margin-top: 0;
+        }
+        
+        .highlight {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #2196F3;
+        }
+        
+        .btn {
+            display: inline-block;
+            background-color: #3498db;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            text-decoration: none;
+        }
+        
+        .btn:hover {
+            background-color: #2980b9;
+            text-decoration: none;
+        }
+        
+        .btn-large {
+            font-size: 18px;
+            padding: 12px 20px;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            font-size: 14px;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Spring Boot MongoDB, Elasticsearch, and Redis Integration</h1>
+        
+        <div class="highlight">
+            <h2>Performance Dashboard</h2>
+            <p>View and compare performance metrics across all database implementations:</p>
+            <a href="/dashboard" class="btn btn-large">Open Performance Dashboard</a>
+        </div>
+        
+        <h2>API Endpoints</h2>
+        
+        <div class="card">
+            <h3>MongoDB Endpoints</h3>
+            <ul>
+                <li><a href="/api/orders/active-products">/api/orders/active-products</a> - Get active product IDs</li>
+                <li><a href="/api/orders/by-status?status=COMPLETED">/api/orders/by-status?status=COMPLETED</a> - Get orders by status</li>
+                <li><a href="/api/db-stats/collections">/api/db-stats/collections</a> - Get database statistics</li>
+            </ul>
+        </div>
+        
+        <div class="card">
+            <h3>Elasticsearch Endpoints</h3>
+            <ul>
+                <li><a href="/api/elasticsearch/products/active">/api/elasticsearch/products/active</a> - Get active products via Elasticsearch</li>
+                <li><a href="/api/elasticsearch/products/active/optimized">/api/elasticsearch/products/active/optimized</a> - Get active products via optimized Elasticsearch</li>
+            </ul>
+        </div>
+        
+        <div class="card">
+            <h3>Redis Cached Endpoints</h3>
+            <ul>
+                <li><a href="/api/redis-cached/products/active">/api/redis-cached/products/active</a> - Get active products with Redis caching</li>
+            </ul>
+        </div>
+        
+        <div class="card">
+            <h3>Dual-Write Architecture Endpoints</h3>
+            <ul>
+                <li><a href="/api/products/active">/api/products/active</a> - Get active product IDs (Redis with MongoDB fallback)</li>
+                <li><a href="/api/products/consistency-check">/api/products/consistency-check</a> - Check consistency between MongoDB and Redis</li>
+            </ul>
+        </div>
+        
+        <div class="card">
+            <h3>Order Management for Active Products</h3>
+            <ul>
+                <li><a href="/api/orders/active">/api/orders/active</a> - Get all orders for active products</li>
+                <li><a href="/api/orders/active-products">/api/orders/active-products</a> - Get active products with orders</li>
+            </ul>
+        </div>
+        
+        <div class="card">
+            <h3>Performance Testing</h3>
+            <ul>
+                <li><a href="/api/performance/test?iterations=3&concurrent=5">/api/performance/test?iterations=3&concurrent=5</a> - Run performance tests</li>
+                <li><a href="#" onclick="warmupSystems(); return false;">/api/performance/warmup</a> - Warm up systems (POST)</li>
+            </ul>
+        </div>
+        
+        <h2>Documentation</h2>
+        
+        <ul>
+            <li><a href="https://github.com/yourusername/springmongo" target="_blank">GitHub Repository</a></li>
+            <li><a href="https://docs.spring.io/spring-data/mongodb/docs/current/reference/html/" target="_blank">Spring Data MongoDB Documentation</a></li>
+            <li><a href="https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/" target="_blank">Spring Data Elasticsearch Documentation</a></li>
+            <li><a href="https://docs.spring.io/spring-data/redis/docs/current/reference/html/" target="_blank">Spring Data Redis Documentation</a></li>
+        </ul>
+        
+        <div class="footer">
+            &copy; 2024 Spring Boot MongoDB, Elasticsearch, and Redis Integration Project
+        </div>
+    </div>
+    
+    <script>
+        async function warmupSystems() {
+            try {
+                const response = await fetch('/api/performance/warmup', {
+                    method: 'POST'
+                });
+                const result = await response.text();
+                alert(result);
+            } catch (error) {
+                console.error('Error warming up systems:', error);
+                alert('Error warming up systems. See console for details.');
+            }
+        }
+    </script>
+</body>
+</html> 
