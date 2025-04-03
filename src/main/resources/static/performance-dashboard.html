@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Performance Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .dashboard-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        .chart-container {
+            margin-bottom: 30px;
+            height: 400px;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 30px;
+        }
+        .results-table th, .results-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .results-table th {
+            background-color: #f2f2f2;
+            color: #333;
+        }
+        .results-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .btn {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .btn-warning {
+            background-color: #ff9800;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+        }
+        .input-group label {
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        .input-group input {
+            width: 60px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .legend-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 0 15px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <h1>Database Performance Dashboard</h1>
+        
+        <div class="dashboard-controls">
+            <div style="display: flex;">
+                <div class="input-group">
+                    <label for="iterations">Iterations:</label>
+                    <input type="number" id="iterations" min="1" max="20" value="5">
+                </div>
+                <div class="input-group">
+                    <label for="concurrent">Concurrent Users:</label>
+                    <input type="number" id="concurrent" min="1" max="50" value="10">
+                </div>
+            </div>
+            
+            <div>
+                <button id="warmupBtn" class="btn btn-warning">Warm Up Systems</button>
+                <button id="runTestBtn" class="btn">Run Performance Tests</button>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="performanceChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="concurrentPerformanceChart"></canvas>
+        </div>
+        
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Implementation</th>
+                    <th>Average Time (ms)</th>
+                    <th>Concurrent Avg (ms)</th>
+                    <th>Min Time (ms)</th>
+                    <th>Max Time (ms)</th>
+                    <th>Iterations</th>
+                    <th>Concurrent Users</th>
+                </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+                <!-- Results will be inserted here dynamically -->
+            </tbody>
+        </table>
+    </div>
+    
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+    
+    <script>
+        // Chart instances
+        let performanceChart;
+        let concurrentPerformanceChart;
+        
+        // Implementation colors
+        const implementationColors = {
+            'mongodb_direct': '#4285F4',            // Google Blue
+            'elasticsearch_optimized': '#FBBC05',   // Google Yellow
+            'redis_cached_elasticsearch': '#34A853', // Google Green
+            'redis_mongodb_dualwrite': '#EA4335',   // Google Red
+            'orders_for_active_products': '#8338EC' // Purple
+        };
+        
+        // Implementation display names
+        const implementationNames = {
+            'mongodb_direct': 'MongoDB Direct',
+            'elasticsearch_optimized': 'Elasticsearch Optimized',
+            'redis_cached_elasticsearch': 'Redis-Cached Elasticsearch',
+            'redis_mongodb_dualwrite': 'Redis-MongoDB Dual-Write',
+            'orders_for_active_products': 'Orders for Active Products'
+        };
+        
+        // Initialize charts
+        function initCharts() {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            performanceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Average Response Time (ms)',
+                        data: [],
+                        backgroundColor: [],
+                        borderColor: [],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Average Response Time Comparison',
+                            font: {
+                                size: 18
+                            }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Response Time (ms)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            const ctxConcurrent = document.getElementById('concurrentPerformanceChart').getContext('2d');
+            concurrentPerformanceChart = new Chart(ctxConcurrent, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Concurrent Response Time (ms)',
+                        data: [],
+                        backgroundColor: [],
+                        borderColor: [],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Concurrent Response Time Comparison',
+                            font: {
+                                size: 18
+                            }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Response Time (ms)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update charts with test results
+        function updateCharts(results) {
+            const labels = [];
+            const avgData = [];
+            const concurrentData = [];
+            const backgroundColors = [];
+            const borderColors = [];
+            
+            // Sort implementations by average time (ascending)
+            const sortedResults = Object.entries(results)
+                .sort((a, b) => a[1].averageTime - b[1].averageTime);
+            
+            for (const [impl, result] of sortedResults) {
+                labels.push(implementationNames[impl] || impl);
+                avgData.push(result.averageTime);
+                concurrentData.push(result.concurrentAverageTime);
+                
+                const color = implementationColors[impl] || '#' + Math.floor(Math.random()*16777215).toString(16);
+                backgroundColors.push(color);
+                borderColors.push(color);
+            }
+            
+            // Update single thread chart
+            performanceChart.data.labels = labels;
+            performanceChart.data.datasets[0].data = avgData;
+            performanceChart.data.datasets[0].backgroundColor = backgroundColors;
+            performanceChart.data.datasets[0].borderColor = borderColors;
+            performanceChart.update();
+            
+            // Update concurrent chart
+            concurrentPerformanceChart.data.labels = labels;
+            concurrentPerformanceChart.data.datasets[0].data = concurrentData;
+            concurrentPerformanceChart.data.datasets[0].backgroundColor = backgroundColors;
+            concurrentPerformanceChart.data.datasets[0].borderColor = borderColors;
+            concurrentPerformanceChart.update();
+        }
+        
+        // Update results table
+        function updateResultsTable(results) {
+            const tableBody = document.getElementById('resultsTableBody');
+            tableBody.innerHTML = '';
+            
+            // Sort implementations by average time (ascending)
+            const sortedResults = Object.entries(results)
+                .sort((a, b) => a[1].averageTime - b[1].averageTime);
+            
+            for (const [impl, result] of sortedResults) {
+                const row = document.createElement('tr');
+                
+                // Add implementation name cell with color indicator
+                const nameCell = document.createElement('td');
+                const colorSpan = document.createElement('span');
+                colorSpan.style.display = 'inline-block';
+                colorSpan.style.width = '12px';
+                colorSpan.style.height = '12px';
+                colorSpan.style.backgroundColor = implementationColors[impl] || '#ccc';
+                colorSpan.style.marginRight = '8px';
+                nameCell.appendChild(colorSpan);
+                nameCell.appendChild(document.createTextNode(implementationNames[impl] || impl));
+                row.appendChild(nameCell);
+                
+                // Add metrics cells
+                row.appendChild(createCell(result.averageTime.toFixed(2)));
+                row.appendChild(createCell(result.concurrentAverageTime.toFixed(2)));
+                row.appendChild(createCell(result.minTime));
+                row.appendChild(createCell(result.maxTime));
+                row.appendChild(createCell(result.iterations));
+                row.appendChild(createCell(result.concurrentUsers));
+                
+                tableBody.appendChild(row);
+            }
+        }
+        
+        // Helper to create table cell
+        function createCell(content) {
+            const cell = document.createElement('td');
+            cell.textContent = content;
+            return cell;
+        }
+        
+        // Run performance tests
+        async function runPerformanceTests() {
+            const iterations = document.getElementById('iterations').value;
+            const concurrent = document.getElementById('concurrent').value;
+            
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            
+            try {
+                const response = await axios.get(`/api/performance/test?iterations=${iterations}&concurrent=${concurrent}`);
+                updateCharts(response.data);
+                updateResultsTable(response.data);
+            } catch (error) {
+                console.error('Error running performance tests:', error);
+                alert('Error running performance tests. See console for details.');
+            } finally {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+        
+        // Warm up systems
+        async function warmupSystems() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            
+            try {
+                await axios.post('/api/performance/warmup');
+                alert('Systems warmed up and ready for performance testing');
+            } catch (error) {
+                console.error('Error warming up systems:', error);
+                alert('Error warming up systems. See console for details.');
+            } finally {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initCharts();
+            
+            document.getElementById('runTestBtn').addEventListener('click', runPerformanceTests);
+            document.getElementById('warmupBtn').addEventListener('click', warmupSystems);
+        });
+    </script>
+</body>
+</html> 
