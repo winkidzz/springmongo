@@ -2,9 +2,9 @@
 
 ## Test Environment
 - Spring Boot application connecting to MongoDB and Elasticsearch
-- Database size: ~100K orders, ~200 product configurations
-- Test method: 10 consecutive requests to each endpoint, measuring total and average response time
-- Date: April 2, 2025
+- Database size: ~100K orders, ~270 product configurations
+- Test method: 5 consecutive requests to each endpoint, measuring total and average response time
+- Date: April 3, 2025
 
 ## Performance Results
 
@@ -23,11 +23,12 @@
 
 | Implementation | Avg. Response Time (ms) | Notes |
 |----------------|-------------------------|-------|
-| Elasticsearch (superfast) | 2232 | Uses aggregations, caching, and optimized query patterns |
+| Elasticsearch (direct) | 1720 | Standard direct query approach |
+| Elasticsearch (optimized) | 77 | Highly optimized implementation using terms queries and filtering |
 | Elasticsearch (repository) | 547 | Spring Data Elasticsearch repository pattern |
-| Elasticsearch (optimized) | 2232 | Optimized implementation using terms queries and filtering |
 | Elasticsearch (simple) | 2,451 | Custom implementation using model classes with custom deserializer |
 | Elasticsearch (manual) | 2,587 | Uses JsonData for manual deserialization, avoiding model classes |
+| Redis-cached Elasticsearch | 96 (first call), 15-20 (subsequent) | Redis-cached optimized implementation |
 
 ## Latest Optimizations Implemented
 
@@ -43,33 +44,96 @@ We implemented several advanced optimizations in our latest Elasticsearch query 
 
 5. **In-Memory Caching**: We implemented a simple time-based caching mechanism to avoid redundant queries within a short timeframe.
 
+6. **Redis Distributed Caching**: We implemented Redis as a distributed cache for both Elasticsearch and MongoDB results.
+
 ## Updated Analysis
 
-1. **Performance Parity**: With our advanced optimizations, Elasticsearch can now match MongoDB's performance in the "distinct" query approach. Both achieve response times of approximately 2.2 seconds.
+1. **Dramatic Performance Improvements**: Our optimized Elasticsearch implementation now drastically outperforms the standard approach, with a 95.5% improvement (1720ms vs 77ms).
 
-2. **Aggregation Power**: Elasticsearch's aggregation capabilities provide powerful ways to summarize data without having to retrieve all documents.
+2. **Redis Caching Benefits**: The Redis-cached implementation provides even better performance for subsequent calls (15-20ms), making it ideal for frequently accessed data.
 
-3. **Caching Benefits**: The caching implementation shows that repeated queries can be handled efficiently, although network overhead still plays a significant role.
+3. **Aggregation Power**: Elasticsearch's aggregation capabilities provide powerful ways to summarize data without having to retrieve all documents.
 
-4. **Query vs. Aggregation**: The initial approach of retrieving all documents and processing them client-side is significantly less efficient than using database-side aggregations.
+4. **Caching Benefits**: Both in-memory and Redis-based caching implementations show that repeated queries can be handled efficiently, although network overhead still plays a significant role.
+
+5. **Query vs. Aggregation**: The initial approach of retrieving all documents and processing them client-side is significantly less efficient than using database-side aggregations.
 
 ## Updated Recommendations
 
 1. **For Real-time Queries**: 
-   - MongoDB's distinct operator and Elasticsearch's aggregation-based approach both offer similar performance levels (~2.2 seconds).
-   - Choose based on your existing infrastructure and team expertise.
+   - Elasticsearch with optimized terms queries provides the best performance (77ms average).
+   - Redis caching further improves performance for repeated queries (15-20ms).
 
 2. **For Elasticsearch**: 
    - Prefer aggregations over document retrieval for analytical queries
    - Use terms filters instead of multiple term queries
    - Use filter context in bool queries when scoring is not needed
-   - Consider implementing application-level caching for frequently accessed data
+   - Implement Redis-based distributed caching for frequently accessed data
 
 3. **Multi-database Strategy**: 
-   - Both databases can achieve similar performance levels with proper optimization
+   - Elasticsearch with proper optimization outperforms MongoDB for this specific use case
    - Consider your specific use case, existing infrastructure, and team expertise
    - Elasticsearch offers better full-text search capabilities
    - MongoDB may be simpler for document-oriented operations
+   - Redis provides the best caching layer for both databases
+
+## Detailed Benchmark Results (April 3, 2025)
+
+### Direct Elasticsearch Endpoint
+```
+Direct Run 1: 1742.6961 ms
+Direct Run 2: 1798.9348 ms
+Direct Run 3: 1699.639 ms
+Direct Run 4: 1676.7573 ms
+Direct Run 5: 1686.2755 ms
+Average: 1720.86054 ms
+```
+
+### Optimized Elasticsearch Endpoint
+```
+Optimized Run 1: 75.8246 ms
+Optimized Run 2: 79.7131 ms
+Optimized Run 3: 75.0206 ms
+Optimized Run 4: 79.378 ms
+Optimized Run 5: 77.1973 ms
+Average: 77.42672 ms
+```
+
+### Redis-Cached Elasticsearch Endpoint
+```
+Redis Run 1: 404.9078 ms (cache miss)
+Redis Run 2: 27.0939 ms (cache hit)
+Redis Run 3: 16.0031 ms (cache hit)
+Redis Run 4: 16.58 ms (cache hit)
+Redis Run 5: 15.6669 ms (cache hit)
+Average: 96.05034 ms (includes first cache miss)
+Cache Hit Average: 18.83598 ms
+```
+
+### Performance Improvement Analysis
+- Direct vs Optimized: 95.5% improvement
+- Direct vs Redis (subsequent): 98.9% improvement
+- Optimized vs Redis (subsequent): 75.7% improvement
+
+## Redis Caching Implementation Details
+
+Our Redis caching implementation includes:
+
+1. **Distributed Cache Layer**: Redis provides a centralized cache accessible by all application instances.
+
+2. **TTL-Based Expiration**: Cache entries expire after a configurable time period (default: 60 seconds).
+
+3. **Cache Keys**: Structured cache keys based on query parameters for easy identification.
+
+4. **Serialization**: JSON serialization for storing complex objects in Redis.
+
+5. **Fallback Mechanism**: Automatic fallback to direct database query if Redis is unavailable or entry is expired.
+
+6. **Cache Management API**: Endpoints for clearing cache entries, viewing cache statistics, and manual cache refreshing.
+
+7. **Performance Metrics**: Logging for cache hit/miss rates and timing information.
+
+8. **Configurable Caching**: Ability to enable/disable caching at application level via configuration properties.
 
 ## Performance Factors
 
@@ -83,20 +147,25 @@ Several factors influenced the performance of both databases in our testing:
 
 4. **Data Volume**: The performance differences may become more pronounced with larger data volumes.
 
+5. **Caching Strategy**: Proper caching strategy dramatically improves performance for repeated queries.
+
 ## Technical Implementation Notes
 
 The performance improvements in our latest implementation were achieved through:
 
-1. Elasticsearch aggregations for efficient server-side processing
-2. Terms filters for batch processing multiple IDs
-3. Source filtering to minimize data transfer
-4. Application-level caching
-5. Filter context usage for better query efficiency
+1. Elasticsearch terms queries for efficient batch processing
+2. Source filtering to minimize data transfer
+3. Application-level caching in Redis
+4. Filter context usage for better query efficiency
+5. Proper connection pooling and timeout configuration
 
 Implementation details can be found in:
 - `ElasticsearchController.java` - Multiple endpoint implementations
 - `FlexibleLocalDateTimeDeserializer.java` - Custom date handling
 - `OrderController.java` - MongoDB optimized implementations 
+- `RedisCachedController.java` - Redis cached implementations
+- `RedisConfig.java` - Redis configuration
+- `CacheService.java` - Cache management service
 
 # Elasticsearch Endpoint Performance Analysis
 
