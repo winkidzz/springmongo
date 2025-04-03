@@ -265,25 +265,39 @@ public class ElasticsearchService {
     }
 
     /**
-     * Find distinct active products using Elasticsearch repository
+     * Find distinct active product IDs using Elasticsearch
+     * Standard implementation
      */
     public List<String> findDistinctActiveProductsES() {
-        logger.info("Finding distinct active products using Elasticsearch repository");
         return orderESRepositoryCustom.findDistinctActiveProductsES();
     }
 
     /**
-     * Find distinct active products using native Elasticsearch client
+     * Find distinct active product IDs using native Elasticsearch query
      */
     public List<String> findDistinctActiveProductsESNative() {
-        logger.info("Finding distinct active products using native Elasticsearch client");
         return orderESRepositoryCustom.findDistinctActiveProductsESNative();
     }
 
     /**
-     * Find distinct active products using the most optimized approach for Redis
-     * caching
-     * This method measures and logs performance metrics
+     * Find distinct active product IDs using optimized Elasticsearch query
+     * High-performance implementation for benchmarking
+     */
+    public List<String> findDistinctActiveProductsOptimized() {
+        long startTime = System.currentTimeMillis();
+        logger.info("Starting optimized query for active products");
+
+        List<String> result = orderESRepositoryCustom.findDistinctActiveProductsOptimized();
+
+        long duration = System.currentTimeMillis() - startTime;
+        logger.info("Found {} active products in {} ms using optimized query",
+                result.size(), duration);
+
+        return result;
+    }
+
+    /**
+     * Find distinct active product IDs using Elasticsearch - optimized for caching
      */
     public List<String> findDistinctActiveProductsOptimizedForCache() {
         long startTime = System.currentTimeMillis();

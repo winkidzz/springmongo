@@ -11,6 +11,12 @@ import java.util.List;
 public interface OrderRepository extends MongoRepository<Order, String> {
         List<Order> findByStatus(String status);
 
+        // Find orders by product ID
+        List<Order> findByProductId(String productId);
+
+        // Find orders for a list of product IDs
+        List<Order> findByProductIdIn(List<String> productIds);
+
         @Query(value = "{ 'status': ?0, 'createdAt': { $gte: ?1 } }")
         List<Order> findByStatusAndCreatedAfter(String status, LocalDateTime startDate);
 

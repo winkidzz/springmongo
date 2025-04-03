@@ -6,6 +6,9 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.stream.StreamSupport;
+import java.util.stream.Collectors;
 
 @Repository
 public interface ProductConfigRedisRepository extends CrudRepository<ProductConfigRedis, String> {
@@ -25,10 +28,18 @@ public interface ProductConfigRedisRepository extends CrudRepository<ProductConf
     // Custom finder for active products (implementation will be provided by Spring
     // Data Redis)
     default List<ProductConfigRedis> findActiveConfigurations(LocalDateTime now) {
-        return findAll().stream()
+        List<ProductConfigRedis> allConfigs = iterableToList(findAll());
+        return allConfigs.stream()
                 .filter(config -> config.isEnabled() &&
                         config.getStartDate().isBefore(now) &&
                         config.getEndDate().isAfter(now))
-                .toList();
+                .collect(Collectors.toList());
+    }
+
+    // Utility method to convert Iterable to List
+    default <T> List<T> iterableToList(Iterable<T> iterable) {
+        List<T> list = new ArrayList<>();
+        iterable.forEach(list::add);
+        return list;
     }
 }

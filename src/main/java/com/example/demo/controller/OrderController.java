@@ -54,7 +54,7 @@ public class OrderController {
                                 startDate, endDate, minAmount));
         }
 
-        @GetMapping("/active-products")
+        @GetMapping("/active-products-basic")
         public ResponseEntity<List<String>> getActiveProducts() {
                 return ResponseEntity.ok(orderService.findDistinctActiveProducts());
         }

@@ -1046,6 +1046,24 @@ public class ElasticsearchController {
                 }
         }
 
+        /**
+         * Get distinct active product IDs with optimal performance for benchmarking
+         * 
+         * @return List of active product IDs
+         */
+        public List<String> getDistinctActiveProductsOptimized() {
+                long startTime = System.currentTimeMillis();
+                logger.info("Starting optimized Elasticsearch query for active products (service method)");
+
+                List<String> activeProductIds = elasticsearchService.findDistinctActiveProductsOptimized();
+
+                long duration = System.currentTimeMillis() - startTime;
+                logger.info("Retrieved {} active product IDs in {} ms (optimized service method)",
+                                activeProductIds.size(), duration);
+
+                return activeProductIds;
+        }
+
         // Cache variables for the ultra-optimized endpoint
         private static final long CACHE_DURATION_MS = 60000; // 1 minute cache
         private static List<String> activeProductsCache = null;

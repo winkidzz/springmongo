@@ -10,10 +10,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.HashSet;
+import java.io.StringReader;
+import java.io.IOException;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -186,6 +190,97 @@ public class OrderESRepositoryImpl implements OrderESRepositoryCustom {
                         return results;
                 } catch (Exception e) {
                         logger.error("Error executing findDistinctActiveProductsESNative", e);
+                        return Collections.emptyList();
+                }
+        }
+
+        @Override
+        public List<String> findDistinctActiveProductsOptimized() {
+                try {
+                        long startTime = System.currentTimeMillis();
+                        logger.info("Starting optimized Elasticsearch query for active products");
+
+                        // Use current date for active product check
+                        LocalDateTime now = LocalDateTime.now();
+                        String formattedDate = now.format(DateTimeFormatter.ISO_DATE_TIME);
+
+                        // Single-query solution using aggregation and filter in one step
+                        String rawQuery = String.format(
+                                        "{" +
+                                                        "  \"size\": 0," +
+                                                        "  \"query\": {" +
+                                                        "    \"term\": {" +
+                                                        "      \"status.keyword\": \"COMPLETED\"" +
+                                                        "    }" +
+                                                        "  }," +
+                                                        "  \"aggs\": {" +
+                                                        "    \"distinct_products\": {" +
+                                                        "      \"terms\": {" +
+                                                        "        \"field\": \"productId.keyword\"," +
+                                                        "        \"size\": 10000" +
+                                                        "      }," +
+                                                        "      \"aggs\": {" +
+                                                        "        \"active_configs\": {" +
+                                                        "          \"filter\": {" +
+                                                        "            \"bool\": {" +
+                                                        "              \"must\": [" +
+                                                        "                { \"term\": { \"enabled\": true } }," +
+                                                        "                { \"range\": { \"startDate\": { \"lte\": \"%s\" } } },"
+                                                        +
+                                                        "                { \"range\": { \"endDate\": { \"gte\": \"%s\" } } }"
+                                                        +
+                                                        "              ]" +
+                                                        "            }" +
+                                                        "          }" +
+                                                        "        }" +
+                                                        "      }" +
+                                                        "    }" +
+                                                        "  }" +
+                                                        "}",
+                                        formattedDate, formattedDate);
+
+                        try {
+                                // Execute the query
+                                SearchRequest request = new SearchRequest.Builder()
+                                                .index("orders")
+                                                .withJson(new StringReader(rawQuery))
+                                                .build();
+
+                                SearchResponse<Void> response = elasticsearchClient.search(request, Void.class);
+
+                                // Process results - extract active product IDs
+                                List<String> activeProductIds = new ArrayList<>();
+
+                                if (response.aggregations() != null) {
+                                        var productBuckets = response.aggregations()
+                                                        .get("distinct_products")
+                                                        .sterms()
+                                                        .buckets().array();
+
+                                        for (var bucket : productBuckets) {
+                                                String productId = bucket.key().stringValue();
+                                                // Only include products that have active configurations
+                                                var activeConfigAgg = bucket.aggregations().get("active_configs");
+                                                if (activeConfigAgg != null
+                                                                && activeConfigAgg.filter().docCount() > 0) {
+                                                        activeProductIds.add(productId);
+                                                }
+                                        }
+                                }
+
+                                long duration = System.currentTimeMillis() - startTime;
+                                logger.info("Optimized query completed in {} ms, found {} active products",
+                                                duration, activeProductIds.size());
+
+                                return activeProductIds;
+
+                        } catch (IOException e) {
+                                logger.error("Error executing optimized Elasticsearch query", e);
+                                return Collections.emptyList();
+                        }
+
+                } catch (Exception e) {
+                        logger.error("Error in findDistinctActiveProductsOptimized", e);
                         return Collections.emptyList();
                 }
         }
