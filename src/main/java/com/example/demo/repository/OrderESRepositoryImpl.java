@@ -2,19 +2,16 @@ package com.example.demo.repository;
 
 import com.example.demo.model.OrderES;
 import com.example.demo.model.ProductConfigES;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch.core.SearchRequest;
+import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.search.Hit;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
-import org.springframework.data.elasticsearch.core.SearchHit;
-import org.springframework.data.elasticsearch.core.SearchHits;
-import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
-import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -24,115 +21,172 @@ import org.slf4j.LoggerFactory;
 @Repository
 public class OrderESRepositoryImpl implements OrderESRepositoryCustom {
 
-    private static final Logger logger = LoggerFactory.getLogger(OrderESRepositoryImpl.class);
+        private static final Logger logger = LoggerFactory.getLogger(OrderESRepositoryImpl.class);
 
-    @Autowired
-    private ElasticsearchOperations elasticsearchOperations;
+        @Autowired
+        private ElasticsearchClient elasticsearchClient;
 
-    @Autowired
-    private ProductConfigESRepository productConfigESRepository;
+        @Autowired
+        private ProductConfigESRepository productConfigESRepository;
 
-    @Override
-    public List<String> findDistinctActiveProductsES() {
-        long startTime = System.currentTimeMillis();
-        logger.info("Starting Elasticsearch two-step query for distinct active products");
+        @Override
+        public List<String> findDistinctActiveProductsES() {
+                try {
+                        long startTime = System.currentTimeMillis();
+                        logger.info("Starting Elasticsearch two-step query for distinct active products");
 
-        // Step 1: Get all completed orders
-        NativeSearchQuery searchQuery = new NativeSearchQueryBuilder()
-                .withQuery(QueryBuilders.termQuery("status", "COMPLETED"))
-                .build();
+                        // Step 1: Get all completed orders
+                        SearchRequest searchRequest = new SearchRequest.Builder()
+                                        .index("orders")
+                                        .query(q -> q
+                                                        .term(t -> t
+                                                                        .field("status.keyword")
+                                                                        .value("COMPLETED")))
+                                        .size(10000)
+                                        .build();
 
-        SearchHits<OrderES> searchHits = elasticsearchOperations.search(searchQuery, OrderES.class);
+                        logger.debug("Search request: {}", searchRequest.toString());
+                        SearchResponse<OrderES> response = elasticsearchClient.search(searchRequest, OrderES.class);
+                        logger.debug("Search response: {}", response.toString());
+                        logger.info("Total hits: {}",
+                                        response.hits().total() != null ? response.hits().total().value() : 0);
 
-        // Extract distinct product IDs
-        Set<String> productIds = searchHits.getSearchHits().stream()
-                .map(SearchHit::getContent)
-                .map(OrderES::getProductId)
-                .collect(Collectors.toSet());
+                        // Log a sample of the hits to verify document structure
+                        if (!response.hits().hits().isEmpty()) {
+                                Hit<OrderES> sampleHit = response.hits().hits().get(0);
+                                logger.info("Sample hit source: {}", sampleHit.source());
+                        }
 
-        long step1EndTime = System.currentTimeMillis();
-        logger.info("Step 1: Found {} distinct product IDs in {} ms",
-                productIds.size(), (step1EndTime - startTime));
+                        // Extract distinct product IDs
+                        Set<String> productIds = response.hits().hits().stream()
+                                        .map(Hit::source)
+                                        .filter(source -> source != null)
+                                        .map(OrderES::getProductId)
+                                        .collect(Collectors.toSet());
 
-        if (productIds.isEmpty()) {
-            return List.of();
+                        long step1EndTime = System.currentTimeMillis();
+                        logger.info("Step 1: Found {} distinct product IDs in {} ms",
+                                        productIds.size(), (step1EndTime - startTime));
+                        logger.debug("Product IDs: {}", productIds);
+
+                        if (productIds.isEmpty()) {
+                                logger.warn("No product IDs found in completed orders. Returning empty list.");
+                                return Collections.emptyList();
+                        }
+
+                        // Step 2: Get active product configurations for these IDs
+                        LocalDateTime now = LocalDateTime.now();
+                        logger.debug("Querying active products with now = {}", now);
+
+                        // Use the custom method instead of Spring Data's method
+                        List<ProductConfigES> activeConfigs = ((ProductConfigESRepositoryCustom) productConfigESRepository)
+                                        .findActiveProductConfigsByProductIds(new ArrayList<>(productIds), now);
+
+                        logger.debug("Found {} active configurations", activeConfigs.size());
+                        for (ProductConfigES config : activeConfigs) {
+                                logger.debug("Active config: id={}, productId={}, enabled={}, startDate={}, endDate={}",
+                                                config.getId(), config.getProductId(), config.isEnabled(),
+                                                config.getStartDate(), config.getEndDate());
+                        }
+
+                        List<String> results = activeConfigs.stream()
+                                        .map(ProductConfigES::getProductId)
+                                        .distinct()
+                                        .collect(Collectors.toList());
+
+                        long endTime = System.currentTimeMillis();
+                        logger.info("Step 2: Filter for active configs completed in {} ms",
+                                        (endTime - step1EndTime));
+                        logger.info("Total execution time: {} ms, found {} active products",
+                                        (endTime - startTime), results.size());
+                        logger.debug("Active product IDs: {}", results);
+
+                        return results;
+                } catch (Exception e) {
+                        logger.error("Error executing findDistinctActiveProductsES", e);
+                        return Collections.emptyList();
+                }
         }
 
-        // Step 2: Get active product configurations for these IDs
-        LocalDateTime now = LocalDateTime.now();
-        List<ProductConfigES> activeConfigs = productConfigESRepository
-                .findByProductIdInAndEnabledTrueAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-                        new ArrayList<>(productIds), now, now);
+        @Override
+        public List<String> findDistinctActiveProductsESNative() {
+                try {
+                        long startTime = System.currentTimeMillis();
+                        logger.info("Starting Elasticsearch native aggregation query for distinct active products");
 
-        List<String> results = activeConfigs.stream()
-                .map(ProductConfigES::getProductId)
-                .distinct()
-                .collect(Collectors.toList());
+                        // Step 1: Use Elasticsearch aggregation to get distinct productIds from
+                        // completed orders
+                        SearchRequest searchRequest = new SearchRequest.Builder()
+                                        .index("orders")
+                                        .query(q -> q
+                                                        .term(t -> t
+                                                                        .field("status.keyword")
+                                                                        .value("COMPLETED")))
+                                        .aggregations("distinct_product_ids", a -> a
+                                                        .terms(t -> t
+                                                                        .field("productId.keyword")
+                                                                        .size(10000)))
+                                        .size(0) // We only need aggregations, not hits
+                                        .build();
 
-        long endTime = System.currentTimeMillis();
-        logger.info("Step 2: Filter for active configs completed in {} ms",
-                (endTime - step1EndTime));
-        logger.info("Total execution time: {} ms, found {} active products",
-                (endTime - startTime), results.size());
+                        logger.debug("Native search request: {}", searchRequest.toString());
+                        SearchResponse<OrderES> response = elasticsearchClient.search(searchRequest, OrderES.class);
+                        logger.debug("Native search response aggregations: {}",
+                                        response.aggregations() != null ? "present" : "null");
 
-        return results;
-    }
+                        // Extract the distinct product IDs from the aggregation result
+                        List<String> distinctProductIds = Collections.emptyList();
+                        if (response.aggregations() != null
+                                        && response.aggregations().get("distinct_product_ids") != null) {
+                                distinctProductIds = response.aggregations()
+                                                .get("distinct_product_ids")
+                                                .sterms()
+                                                .buckets().array()
+                                                .stream()
+                                                .map(bucket -> bucket.key().stringValue())
+                                                .collect(Collectors.toList());
+                        }
 
-    @Override
-    public List<String> findDistinctActiveProductsESNative() {
-        long startTime = System.currentTimeMillis();
-        logger.info("Starting Elasticsearch native aggregation query for distinct active products");
+                        long step1EndTime = System.currentTimeMillis();
+                        logger.info("Step 1: Native ES aggregation completed in {} ms, found {} distinct products",
+                                        (step1EndTime - startTime), distinctProductIds.size());
+                        logger.debug("Distinct product IDs: {}", distinctProductIds);
 
-        // Step 1: Use Elasticsearch aggregation to get distinct productIds from
-        // completed orders
-        TermsAggregationBuilder aggregation = AggregationBuilders
-                .terms("distinct_product_ids")
-                .field("productId")
-                .size(10000); // Set a high size to ensure we get all distinct values
+                        if (distinctProductIds.isEmpty()) {
+                                return Collections.emptyList();
+                        }
 
-        NativeSearchQuery searchQuery = new NativeSearchQueryBuilder()
-                .withQuery(QueryBuilders.termQuery("status", "COMPLETED"))
-                .addAggregation(aggregation)
-                .build();
+                        // Step 2: Get active product configurations for these IDs
+                        LocalDateTime now = LocalDateTime.now();
+                        logger.debug("Querying active products with now = {}", now);
 
-        SearchHits<OrderES> searchHits = elasticsearchOperations.search(searchQuery, OrderES.class);
+                        // Use the custom method instead of Spring Data's method
+                        List<ProductConfigES> activeConfigs = ((ProductConfigESRepositoryCustom) productConfigESRepository)
+                                        .findActiveProductConfigsByProductIds(distinctProductIds, now);
 
-        // Extract the distinct product IDs from the aggregation result
-        @SuppressWarnings("unchecked")
-        List<String> distinctProductIds = (List<String>) searchHits.getAggregations()
-                .get("distinct_product_ids")
-                .getMetadata()
-                .get("buckets")
-                .stream()
-                .map(bucket -> ((org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket) bucket)
-                        .getKeyAsString())
-                .collect(Collectors.toList());
+                        logger.debug("Found {} active configurations", activeConfigs.size());
+                        for (ProductConfigES config : activeConfigs) {
+                                logger.debug("Active config: id={}, productId={}, enabled={}, startDate={}, endDate={}",
+                                                config.getId(), config.getProductId(), config.isEnabled(),
+                                                config.getStartDate(), config.getEndDate());
+                        }
 
-        long step1EndTime = System.currentTimeMillis();
-        logger.info("Step 1: Native ES aggregation completed in {} ms, found {} distinct products",
-                (step1EndTime - startTime), distinctProductIds.size());
+                        List<String> results = activeConfigs.stream()
+                                        .map(ProductConfigES::getProductId)
+                                        .distinct()
+                                        .collect(Collectors.toList());
 
-        if (distinctProductIds.isEmpty()) {
-            return List.of();
+                        long endTime = System.currentTimeMillis();
+                        logger.info("Step 2: Filter for active configs completed in {} ms",
+                                        (endTime - step1EndTime));
+                        logger.info("Total execution time: {} ms, found {} active products",
+                                        (endTime - startTime), results.size());
+                        logger.debug("Active product IDs: {}", results);
+
+                        return results;
+                } catch (Exception e) {
+                        logger.error("Error executing findDistinctActiveProductsESNative", e);
+                        return Collections.emptyList();
+                }
         }
-
-        // Step 2: Get active product configurations for these IDs
-        LocalDateTime now = LocalDateTime.now();
-        List<ProductConfigES> activeConfigs = productConfigESRepository
-                .findByProductIdInAndEnabledTrueAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-                        distinctProductIds, now, now);
-
-        List<String> results = activeConfigs.stream()
-                .map(ProductConfigES::getProductId)
-                .distinct()
-                .collect(Collectors.toList());
-
-        long endTime = System.currentTimeMillis();
-        logger.info("Step 2: Filter for active configs completed in {} ms",
-                (endTime - step1EndTime));
-        logger.info("Total execution time: {} ms, found {} active products",
-                (endTime - startTime), results.size());
-
-        return results;
-    }
 }

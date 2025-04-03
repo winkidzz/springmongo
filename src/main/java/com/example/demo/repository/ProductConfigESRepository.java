@@ -8,12 +8,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
-public interface ProductConfigESRepository extends ElasticsearchRepository<ProductConfigES, String> {
-    List<ProductConfigES> findByEnabledTrue();
+public interface ProductConfigESRepository
+                extends ElasticsearchRepository<ProductConfigES, String>, ProductConfigESRepositoryCustom {
+        List<ProductConfigES> findByEnabledTrue();
 
-    List<ProductConfigES> findByEnabledTrueAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-            LocalDateTime now, LocalDateTime now2);
+        List<ProductConfigES> findByEnabledTrueAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+                        LocalDateTime now, LocalDateTime now2);
 
-    List<ProductConfigES> findByProductIdInAndEnabledTrueAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-            List<String> productIds, LocalDateTime now, LocalDateTime now2);
+        List<ProductConfigES> findByProductIdInAndEnabledTrueAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+                        List<String> productIds, LocalDateTime now, LocalDateTime now2);
 }

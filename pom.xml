@@ -46,7 +46,7 @@
     <spring-cloud-services-starter-config-client.version>4.1.0</spring-cloud-services-starter-config-client.version>
     <spring-cloud-starter-bootstrap.version>4.1.0</spring-cloud-starter-bootstrap.version>
     <spring-boot-devtools.version>3.2.3</spring-boot-devtools.version>
-    <elasticsearch.version>7.17.10</elasticsearch.version>
+    <elasticsearch.version>8.12.2</elasticsearch.version>
   </properties>
   <repositories>
     <!--other repositories if any-->
@@ -98,9 +98,19 @@
       <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.elasticsearch.client</groupId>
-      <artifactId>elasticsearch-rest-high-level-client</artifactId>
+      <groupId>co.elastic.clients</groupId>
+      <artifactId>elasticsearch-java</artifactId>
       <version>${elasticsearch.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.json</groupId>
+      <artifactId>jakarta.json-api</artifactId>
+      <version>2.1.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.glassfish</groupId>
+      <artifactId>jakarta.json</artifactId>
+      <version>2.0.1</version>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -147,6 +157,15 @@
       <groupId>com.bol</groupId>
       <artifactId>spring-data-mongodb-encrypt</artifactId>
       <version>${mongodb-encrypt.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-redis</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>1.4.11</version>
     </dependency>
   </dependencies>
   <dependencyManagement>
